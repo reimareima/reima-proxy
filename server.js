@@ -12,30 +12,45 @@ const app = express();
 
 // ─── CORS ──────────────────────────────────────────────────────────
 // Only allow requests from your own domains — prevents others from
-// using your proxy on your bill. Add your real production domain to
-// ALLOWED_ORIGINS once you have it (e.g. "https://reima.app").
-// In Railway: set ALLOWED_ORIGINS env var to a comma-separated list.
+// using your proxy on your bill. Set ALLOWED_ORIGINS env var to a
+// comma-separated list of allowed origins (no spaces).
 const DEFAULT_ORIGINS = [
   'http://localhost:3000',
   'http://localhost:5173',
   'http://localhost:8080',
   'http://127.0.0.1:3000',
-  'http://127.0.0.1:5500',  // VS Code Live Server default
-  'null',                    // file:// in some browsers shows up as 'null'
+  'http://127.0.0.1:5500',
+  'null',
 ];
+
+function normalizeOrigin(s) {
+  if (!s) return '';
+  // Strip trailing slashes, lowercase scheme+host
+  return s.trim().replace(/\/+$/, '').toLowerCase();
+}
+
 const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
-  : DEFAULT_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(normalizeOrigin)
+  : DEFAULT_ORIGINS.map(normalizeOrigin)
 ).filter(Boolean);
+
+console.log('[cors] Allowed origins:', ALLOWED_ORIGINS);
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Requests with no origin (curl, server-to-server, mobile apps) are allowed
+    // Requests with no origin (curl, server-to-server) are allowed
     if (!origin) return callback(null, true);
-    if (ALLOWED_ORIGINS.includes(origin)) return callback(null, true);
-    console.warn(`[cors] Blocked origin: ${origin}`);
-    return callback(new Error('Not allowed by CORS'));
+    const norm = normalizeOrigin(origin);
+    if (ALLOWED_ORIGINS.includes(norm)) {
+      return callback(null, true);
+    }
+    console.warn(`[cors] Blocked origin: "${origin}" (normalized: "${norm}")`);
+    // IMPORTANT: return false instead of throwing — throwing causes 500 on preflight
+    return callback(null, false);
   },
+  credentials: false,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Accept'],
 }));
 
 // Image-edit prompts include base64 image data — needs a generous body limit

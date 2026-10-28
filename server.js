@@ -221,6 +221,8 @@ app.post('/gemini', async (req, res) => {
     'gemini-2.5-flash-image',
     'gemini-2.5-flash',
     'gemini-2.5-pro',
+    'gemini-nano-banana-2.1',
+    'gemini-3-pro-image',
   ]);
   if (!ALLOWED_MODELS.has(model)) {
     return res.status(400).json({ error: `Model not allowed: ${model}` });

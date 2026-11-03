@@ -260,6 +260,7 @@ const MATERIALS = [
 // Feature words with the different ways Höffner writes them
 const FEATURE_SYNONYMS = {
   rillen: /rillen|riffel|gerillt|lamellen|rippen/, gerillt: /rillen|riffel|gerillt|lamellen|rippen/,
+  plissee: /plissee|plissiert|falten/, opalglas: /opal|milchglas|satiniert/, kugel: /kugel|globe/,
   schwebend: /schwebend|hängend|wandmontage|wandhänge/, geflochten: /geflecht|geflochten/,
   rund: /rund|ø/, ausziehbar: /ausziehbar|ausziehfunktion|auszug/, dimmbar: /dimmbar|dimmfunktion/,
   schlaffunktion: /schlaffunktion|bettfunktion/, bettkasten: /bettkasten|stauraum/,
@@ -277,7 +278,13 @@ const FEATURES = ['rund', 'oval', 'eckig', 'quadratisch', 'rechteckig', 'auszieh
   'japandi', 'retro', 'modern', 'minimalistisch', 'klassisch', 'chesterfield', 'tulpe', 'kugel', 'schirm',
   'rollen', 'schubladen', 'türen', 'glastüren', 'offen', 'klappbar', 'kissen', 'fransen', 'muster', 'gestreift',
   'karo', 'hochflor', 'kurzflor', 'waschbar', 'blickdicht', 'transparent', 'verdunkelung', 'led', 'kabellos',
-  'akku', 'groß', 'klein', 'schmal', 'breit', 'hoch', 'niedrig', 'xxl', 'mini', 'organisch', 'geschwungen'];
+  'akku', 'groß', 'klein', 'schmal', 'breit', 'hoch', 'niedrig', 'xxl', 'mini', 'organisch', 'geschwungen',
+  'plissee', 'opalglas'];
+// Words too vague to decide whether a product really is "the one"
+const GENERIC = new Set(['groß', 'große', 'großer', 'klein', 'kleine', 'modern', 'moderne', 'schmal', 'breit', 'hoch',
+  'niedrig', 'xxl', 'mini', 'klassisch', 'minimalistisch', 'skandinavisch', 'organisch', 'japandi', 'boho', 'retro',
+  'landhaus', 'industrial', 'vintage', 'stil', 'look', 'optik', 'warm', 'warme', 'weich', 'weiche', 'edel', 'elegant',
+  'gemütlich', 'natur', 'natürlich', 'hell', 'helle', 'dunkel', 'dunkle', 'zeitlos', 'schlicht']);
 
 const STOP = new Set(['mit', 'und', 'für', 'aus', 'der', 'die', 'das', 'im', 'in', 'am', 'set', 'stück', 'cm',
   'design', 'deko', 'wohnzimmer', 'schlafzimmer', 'esszimmer', 'flur', 'bad', 'modern', 'stil', 'look']);
@@ -362,11 +369,15 @@ function parseQuery(q) {
     && !COLOURS.some(([re]) => re.test(w)) && !MATERIALS.some(([k]) => w.includes(k))
     && !(rule && rule[0].test(w)));
 
+  // The words that make this product THIS product ("Plissee", "Opalglas"):
+  // a match is only "sure" if at least half of them are found.
+  const keys = [...features, ...rest].filter(w => !GENERIC.has(w) && !/\d/.test(w));
+
   let priceMin = 0, priceMax = 0;
   const pm = String(q.price || '').replace(/\./g, '').match(/(\d+)\D+(\d+)/);
   if (pm) { priceMin = +pm[1]; priceMax = +pm[2]; }
 
-  return { text, rule, need: rule && rule[2], paths, colour, wood, massiv, materials, features, rest, priceMin, priceMax,
+  return { text, rule, need: rule && rule[2], paths, colour, wood, massiv, materials, features, rest, keys, priceMin, priceMax,
     // The first word naming a type wins ("Rattankorb mit Pflanze" is a basket);
     // otherwise anything that mentions plants, flooring etc. is skipped
     excluded: firstRule ? false : EXCLUDE_RE.test(text) };
@@ -415,8 +426,14 @@ function scoreItem(it, Q, pathW) {
     else s -= 8;
   }
   const colourOk = !Q.colour || it.colour === Q.colour[0] || Q.colour.includes(it.colour);
-  const materialOk = !Q.materials.length || matHits > 0;
-  return { s, why, sure: colourOk && materialOk };
+  // every material asked for must be there ("Messing + Opalglas" = both)
+  const materialOk = matHits === Q.materials.length;
+  const keyHits = Q.keys.filter(w => {
+    const re = FEATURE_SYNONYMS[w];
+    return re ? re.test(all) : all.includes(w.length > 5 ? w.slice(0, -1) : w);
+  }).length;
+  const keysOk = keyHits * 2 >= Q.keys.length;
+  return { s, why, sure: colourOk && materialOk && keysOk };
 }
 
 // query: { text, material?, price? }  ->  { type, results: [...] }

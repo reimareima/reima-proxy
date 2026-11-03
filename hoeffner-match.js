@@ -181,7 +181,7 @@ const TYPE_RULES = [
 ];
 
 // Never matched (Höffner doesn't carry these well; also plants by request)
-const EXCLUDE_RE = /vinyl|laminat|parkett|fliese|tapete|wandfarbe|teppichboden|bodenbelag|sockelleiste|led-?streifen|led strip|lichterkette|glühbirne|leuchtmittel|smart plug|steckdose|kabel|pflanze|baum\b|monstera|olive|ficus|palme|kaktus|eukalyptus|bonsai|trockenblume|pampas|kunstblume/;
+const EXCLUDE_RE = /vinyl|laminat|parkett|fliese|tapete|wandfarbe|teppichboden|bodenbelag|sockelleiste|led-?streifen|led strip|lichterkette|glühbirne|leuchtmittel|smart plug|steckdose|kabel|pflanze|(oliven|zitronen|geld|gummi|feigen|lorbeer|bananen|kunst|zier|zimmer)baum|monstera|ficus|palme|kaktus|eukalyptus|bonsai|trockenblume|pampas|kunstblume/;
 
 // Query colour words -> Höffner feed colours. First entry = exact match,
 // the rest count as "close enough".
@@ -324,7 +324,8 @@ function parseQuery(q) {
 
   // Product type: first word decides if it names a type, otherwise the whole text
   const findRule = s => TYPE_RULES.find(([re]) => re.test(s));
-  let rule = (words[0] && !/^(deko|set|design|moderne?[rs]?|große?[rs]?|kleine?[rs]?|runde?[rs]?)$/.test(words[0]) && findRule(words[0])) || findRule(text);
+  const firstRule = words[0] && !/^(deko|set|design|moderne?[rs]?|große?[rs]?|kleine?[rs]?|runde?[rs]?)$/.test(words[0]) && !EXCLUDE_RE.test(words[0]) ? findRule(words[0]) : null;
+  let rule = firstRule || findRule(text);
   // A more specific rule of the same family wins ("Sofa 3-Sitzer" -> 3-Sitzer,
   // "Teppich Jute" -> Naturteppiche), but never a different product type
   // ("Sessel mit Kissen" stays a Sessel).
@@ -365,7 +366,9 @@ function parseQuery(q) {
   if (pm) { priceMin = +pm[1]; priceMax = +pm[2]; }
 
   return { text, rule, need: rule && rule[2], paths, colour, wood, massiv, materials, features, rest, priceMin, priceMax,
-    excluded: EXCLUDE_RE.test(text) };
+    // The first word naming a type wins ("Rattankorb mit Pflanze" is a basket);
+    // otherwise anything that mentions plants, flooring etc. is skipped
+    excluded: firstRule ? false : EXCLUDE_RE.test(text) };
 }
 
 // ── Search ───────────────────────────────────────────────────────────

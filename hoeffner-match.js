@@ -306,7 +306,6 @@ function buildIndex(rows) {
       price,
       oldPrice: parseFloat(r.product_price_old) || 0,
       image: r.aw_image_url || '',
-      imageLarge: r.merchant_image_url || r.large_image || '',
       link: r.aw_deep_link,
       delivery: r.delivery_time || '',
       // what we search in: title weighs most, so it's kept separate
@@ -420,7 +419,9 @@ function scoreItem(it, Q, pathW) {
 
 // query: { text, material?, price? }  ->  { type, results: [...] }
 function search(index, query, limit = 4) {
-  const Q = parseQuery(query);
+  let Q = parseQuery(query);
+  // No product type in the search phrase? Try the card's display title.
+  if (!Q.paths.length && !Q.excluded && query.alt) Q = parseQuery({ ...query, text: `${query.alt} ${query.text}` });
   if (Q.excluded || !Q.paths.length) return { matched: false, reason: Q.excluded ? 'excluded' : 'no-type', results: [] };
 
   const best = new Map();   // collapse variants by title
@@ -455,7 +456,7 @@ function search(index, query, limit = 4) {
     colour: Q.colour ? Q.colour[0] : null,
     results: out.map(({ it, score, why, sure }) => ({ sure,
       id: it.id, title: it.title, price: it.price, oldPrice: it.oldPrice > it.price ? it.oldPrice : 0,
-      colour: it.colour, image: it.image, imageLarge: it.imageLarge, link: it.link, delivery: it.delivery,
+      colour: it.colour, image: it.image, link: it.link, delivery: it.delivery,
       category: it.path.split(' > ').slice(-1)[0], score: Math.round(score), why,
     })),
   };

@@ -191,7 +191,9 @@ const COLOURS = [
   [/^(schwarz|anthrazitschwarz)/,                    ['Schwarz', 'Grau']],
   [/^(hellgrau|grau|anthrazit|steingrau|dunkelgrau|silbergrau)/, ['Grau', 'Silber']],
   [/^(braun|cognac|nussbaum|walnuss|schoko|mokka|karamell|hellbraun|dunkelbraun|kastanie|caramel)/, ['Braun', 'Beige']],
-  [/^(beige|taupe|sand|champagner|hafer|greige|natur|naturfarben|leinenfarben|camel)/, ['Beige', 'Creme', 'Braun']],
+  // "natur" is left out on purpose: with rattan, jute or linen it describes
+  // the material, not a colour
+  [/^(beige|taupe|sand|champagner|hafer|greige|leinenfarben|camel)/, ['Beige', 'Creme', 'Braun']],
   [/^(petrol)/,                                      ['Türkis', 'Blau', 'Grün']],
   [/^(türkis|tuerkis|mint)/,                         ['Türkis', 'Grün', 'Blau']],
   [/^(blau|navy|marine|dunkelblau|hellblau|taubenblau|rauchblau|nachtblau)/, ['Blau', 'Türkis']],
@@ -223,8 +225,9 @@ const MATERIALS = [
   ['strick',    /strick/],
   ['jute',      /jute/],
   ['sisal',     /sisal/],
-  ['rattan',    /rattan|geflecht|korbgeflecht|wiener geflecht/],
-  ['geflecht',  /rattan|geflecht/],
+  // natural weaves look alike: a woven bamboo lamp is fine for "Rattan"
+  ['rattan',    /rattan|korbgeflecht|wiener geflecht|peddigrohr|bambus|geflochten|seegras|wasserhyazinthe/],
+  ['geflecht',  /rattan|korbgeflecht|wiener geflecht/],
   ['bambus',    /bambus/],
   ['eiche',     /eiche/],
   ['nussbaum',  /nussbaum|walnuss/],
@@ -248,7 +251,6 @@ const MATERIALS = [
   ['keramik',   /keramik|steinzeug|porzellan/],
   ['steinzeug', /steinzeug|keramik/],
   ['porzellan', /porzellan/],
-  ['terrakotta', /terrakotta|terracotta|ton\b/],
   ['papier',    /papier/],
   ['stoff',     /stoff|webstoff/],
   ['filz',      /filz/],
@@ -371,7 +373,9 @@ function parseQuery(q) {
 
   // The words that make this product THIS product ("Plissee", "Opalglas"):
   // a match is only "sure" if at least half of them are found.
-  const keys = [...features, ...rest].filter(w => !GENERIC.has(w) && !/\d/.test(w));
+  // Only the defining features count (Plissee, Opalglas, Kugel ...); loose
+  // descriptive words ("Voile", "Landhaus") would make it far too strict.
+  const keys = features.filter(w => FEATURE_SYNONYMS[w] && !GENERIC.has(w));
 
   let priceMin = 0, priceMax = 0;
   const pm = String(q.price || '').replace(/\./g, '').match(/(\d+)\D+(\d+)/);
@@ -405,6 +409,7 @@ function scoreItem(it, Q, pathW) {
   if (Q.wood) {
     if (Q.wood.includes(it.colour)) s += 12;
     else if (/^(Weiß|Grau|Schwarz|Silber)$/.test(it.colour)) s -= 12;
+    else if (/^(Gelb|Grün|Rot|Blau|Rosa|Lila|Orange|Türkis|Bunt)$/.test(it.colour)) s -= 15;
   }
   if (Q.massiv && /dekor/.test(all) && !/massiv/.test(all)) s -= 12;
 

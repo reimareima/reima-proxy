@@ -38,7 +38,7 @@ const TYPE_RULES = [
 
   // ── Textiles
   [/kinderbettwäsche/,                              ['Heimtextilien > Bettwäsche > Kinderbettwäsche']],
-  [/bettwäsche|bettbezug|bettgarnitur/,             ['Heimtextilien > Bettwäsche > Bettwäsche']],
+  [/bettwäsche|bettbezug|bettgarnitur/,             ['Heimtextilien > Bettwäsche > Bettwäsche ganzjährig', 'Heimtextilien > Bettwäsche > Bettwäsche Sommer', 'Heimtextilien > Bettwäsche > Bettwäsche Winter']],
   [/spannbettlaken|bettlaken|spannbetttuch/,        ['Heimtextilien > Bettwäsche > Bettlaken']],
   [/kopfkissenbezug/,                               ['Heimtextilien > Bettwäsche > Kopfkissenbezüge']],
   [/kopfkissen/,                                    ['Heimtextilien > Bettwaren > Kopfkissen']],
@@ -257,6 +257,19 @@ const MATERIALS = [
   ['kunstleder', /kunstleder/],
 ];
 
+// Feature words with the different ways Höffner writes them
+const FEATURE_SYNONYMS = {
+  rillen: /rillen|riffel|gerillt|lamellen|rippen/, gerillt: /rillen|riffel|gerillt|lamellen|rippen/,
+  schwebend: /schwebend|hängend|wandmontage|wandhänge/, geflochten: /geflecht|geflochten/,
+  rund: /rund|ø/, ausziehbar: /ausziehbar|ausziehfunktion|auszug/, dimmbar: /dimmbar|dimmfunktion/,
+  schlaffunktion: /schlaffunktion|bettfunktion/, bettkasten: /bettkasten|stauraum/,
+};
+// Wood words imply a colour when the query names none
+const WOOD_TONES = [
+  [/eiche|buche|kiefer|birke|esche|natur/, ['Beige', 'Braun']],
+  [/nussbaum|walnuss|akazie|mango|teak|wildeiche|räuchereiche|kernbuche/, ['Braun']],
+];
+
 // Shape / feature words worth rewarding when they appear in a product
 const FEATURES = ['rund', 'oval', 'eckig', 'quadratisch', 'rechteckig', 'ausziehbar', 'schwebend', 'hängend',
   'dimmbar', 'schlaffunktion', 'bettkasten', 'armlehne', 'armlehnen', 'drehbar', 'höhenverstellbar', 'stapelbar',
@@ -278,7 +291,7 @@ function buildIndex(rows) {
   for (const r of rows) {
     const path = r.merchant_product_category_path || '';
     if (!path) continue;
-    const title = String(r.product_name || '').split('¦')[0].trim();
+    const title = String(r.product_name || '').split('¦')[0].replace(/[`´']/g, '').replace(/\s+/g, ' ').trim();
     if (!title) continue;
     const price = parseFloat(r.search_price) || 0;
     if (!price) continue;
@@ -311,7 +324,17 @@ function parseQuery(q) {
 
   // Product type: first word decides if it names a type, otherwise the whole text
   const findRule = s => TYPE_RULES.find(([re]) => re.test(s));
-  const rule = (words[0] && !/^(deko|set|design|moderne?[rs]?|große?[rs]?|kleine?[rs]?|runde?[rs]?)$/.test(words[0]) && findRule(words[0])) || findRule(text);
+  let rule = (words[0] && !/^(deko|set|design|moderne?[rs]?|große?[rs]?|kleine?[rs]?|runde?[rs]?)$/.test(words[0]) && findRule(words[0])) || findRule(text);
+  // A more specific rule of the same family wins ("Sofa 3-Sitzer" -> 3-Sitzer,
+  // "Teppich Jute" -> Naturteppiche), but never a different product type
+  // ("Sessel mit Kissen" stays a Sessel).
+  if (rule) {
+    const fam = p => p.split('@')[0].split(' > ').slice(0, 2).join(' > ');
+    const ruleFams = new Set(rule[1].map(fam));
+    const better = TYPE_RULES.find(r => r !== rule && TYPE_RULES.indexOf(r) < TYPE_RULES.indexOf(rule)
+      && r[0].test(text) && r[1].every(p => ruleFams.has(fam(p))) && r[1].length <= rule[1].length);
+    if (better) rule = better;
+  }
 
   const paths = rule ? rule[1].map(p => {
     const [path, w] = p.split('@');
@@ -329,6 +352,8 @@ function parseQuery(q) {
   const materials = MATERIALS.filter(([k]) => matText.includes(k)).map(([, re]) => re);
   // drop "holz" if a specific wood was found, "stein" if marble etc.
   const features = FEATURES.filter(f => words.includes(f));
+  const wood = colour ? null : (WOOD_TONES.find(([re]) => re.test(matText)) || [])[1] || null;
+  const massiv = /massiv/.test(matText);
 
   // Leftover descriptive words (not type, colour, material, stop words)
   const rest = words.filter(w => w.length >= 4 && !STOP.has(w) && !features.includes(w)
@@ -339,7 +364,7 @@ function parseQuery(q) {
   const pm = String(q.price || '').replace(/\./g, '').match(/(\d+)\D+(\d+)/);
   if (pm) { priceMin = +pm[1]; priceMax = +pm[2]; }
 
-  return { text, rule, need: rule && rule[2], paths, colour, materials, features, rest, priceMin, priceMax,
+  return { text, rule, need: rule && rule[2], paths, colour, wood, massiv, materials, features, rest, priceMin, priceMax,
     excluded: EXCLUDE_RE.test(text) };
 }
 
@@ -356,13 +381,22 @@ function scoreItem(it, Q, pathW) {
   }
 
   const all = it.t + ' ' + it.x;
+  let matHits = 0;
   for (const re of Q.materials) {
-    if (re.test(it.t)) { s += 28; why.push('mat'); }
-    else if (re.test(all)) { s += 20; why.push('mat~'); }
+    if (re.test(it.t)) { s += 28; matHits++; why.push('mat'); }
+    else if (re.test(all)) { s += 20; matHits++; why.push('mat~'); }
     else s -= 8;
   }
+  if (Q.wood) {
+    if (Q.wood.includes(it.colour)) s += 12;
+    else if (/^(Weiß|Grau|Schwarz|Silber)$/.test(it.colour)) s -= 12;
+  }
+  if (Q.massiv && /dekor/.test(all) && !/massiv/.test(all)) s -= 12;
 
-  for (const f of Q.features) if (all.includes(f)) { s += 7; why.push(f); }
+  for (const f of Q.features) {
+    const re = FEATURE_SYNONYMS[f];
+    if (re ? re.test(all) : all.includes(f)) { s += 9; why.push(f); }
+  }
   for (const w of Q.rest) {
     const stem = w.length > 5 ? w.slice(0, -1) : w;
     if (it.t.includes(stem)) { s += 8; why.push(w); }
@@ -376,7 +410,9 @@ function scoreItem(it, Q, pathW) {
     else if (it.price > Q.priceMax * 3) s -= 18;
     else s -= 8;
   }
-  return { s, why };
+  const colourOk = !Q.colour || it.colour === Q.colour[0] || Q.colour.includes(it.colour);
+  const materialOk = !Q.materials.length || matHits > 0;
+  return { s, why, sure: colourOk && materialOk };
 }
 
 // query: { text, material?, price? }  ->  { type, results: [...] }
@@ -390,10 +426,10 @@ function search(index, query, limit = 4) {
     for (const p of Q.paths) if (it.path === p.path || it.path.startsWith(p.path + ' >')) { pathW = Math.max(pathW, p.w); }
     if (!pathW) continue;
     if (Q.need && !Q.need.test(it.t)) continue;
-    const { s, why } = scoreItem(it, Q, pathW);
+    const { s, why, sure } = scoreItem(it, Q, pathW);
     const key = it.t;
     const prev = best.get(key);
-    if (!prev || s > prev.score) best.set(key, { it, score: s, why });
+    if (!prev || s > prev.score) best.set(key, { it, score: s, why, sure });
   }
 
   const ranked = [...best.values()].sort((a, b) => b.score - a.score || a.it.price - b.it.price);
@@ -410,8 +446,11 @@ function search(index, query, limit = 4) {
 
   return {
     matched: out.length > 0,
+    // "sure" = the best hit has the asked-for colour and material, so the
+    // frontend may show it as THE product; otherwise it's just inspiration
+    sure: !!(out[0] && out[0].sure),
     colour: Q.colour ? Q.colour[0] : null,
-    results: out.map(({ it, score, why }) => ({
+    results: out.map(({ it, score, why, sure }) => ({ sure,
       id: it.id, title: it.title, price: it.price, oldPrice: it.oldPrice > it.price ? it.oldPrice : 0,
       colour: it.colour, image: it.image, imageLarge: it.imageLarge, link: it.link, delivery: it.delivery,
       category: it.path.split(' > ').slice(-1)[0], score: Math.round(score), why,

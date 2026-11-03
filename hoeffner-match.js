@@ -191,7 +191,9 @@ const COLOURS = [
   [/^(schwarz|anthrazitschwarz)/,                    ['Schwarz', 'Grau']],
   [/^(hellgrau|grau|anthrazit|steingrau|dunkelgrau|silbergrau)/, ['Grau', 'Silber']],
   [/^(braun|cognac|nussbaum|walnuss|schoko|mokka|karamell|hellbraun|dunkelbraun|kastanie|caramel)/, ['Braun', 'Beige']],
-  [/^(beige|taupe|sand|champagner|hafer|greige|natur|naturfarben|leinenfarben|camel)/, ['Beige', 'Creme', 'Braun']],
+  // "natur" is left out on purpose: with rattan, jute or linen it describes
+  // the material, not a colour
+  [/^(beige|taupe|sand|champagner|hafer|greige|leinenfarben|camel)/, ['Beige', 'Creme', 'Braun']],
   [/^(petrol)/,                                      ['Türkis', 'Blau', 'Grün']],
   [/^(türkis|tuerkis|mint)/,                         ['Türkis', 'Grün', 'Blau']],
   [/^(blau|navy|marine|dunkelblau|hellblau|taubenblau|rauchblau|nachtblau)/, ['Blau', 'Türkis']],
@@ -371,7 +373,9 @@ function parseQuery(q) {
 
   // The words that make this product THIS product ("Plissee", "Opalglas"):
   // a match is only "sure" if at least half of them are found.
-  const keys = [...features, ...rest].filter(w => !GENERIC.has(w) && !/\d/.test(w));
+  // Only the defining features count (Plissee, Opalglas, Kugel ...); loose
+  // descriptive words ("Voile", "Landhaus") would make it far too strict.
+  const keys = features.filter(w => FEATURE_SYNONYMS[w] && !GENERIC.has(w));
 
   let priceMin = 0, priceMax = 0;
   const pm = String(q.price || '').replace(/\./g, '').match(/(\d+)\D+(\d+)/);

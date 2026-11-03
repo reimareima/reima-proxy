@@ -7,6 +7,7 @@
 
 const express = require('express');
 const cors = require('cors');
+const hoeffner = require('./hoeffner-feed');
 
 const app = express();
 
@@ -174,7 +175,43 @@ app.get('/health', (req, res) => {
     rate_limits: RL,
     global_day_used: globalDay.count,
     global_day_remaining: RL.GLOBAL_PER_DAY - globalDay.count,
+    hoeffner_feed: hoeffner.status(),
   });
+});
+
+// ─── PRODUCT SEARCH (Höffner via Awin feed) ───────────────────────
+// Cheap (no paid API behind it), so it has its own, looser limit and
+// doesn't count towards the AI cost cap above.
+const productMinute = new Map();   // ip -> { count, resetAt }
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, rec] of productMinute) if (rec.resetAt <= now) productMinute.delete(ip);
+}, 5 * 60_000);
+
+// Body: { items: [{ text, material?, price?, alt? }, ...] }   (max 24 items)
+//   text = the product's search phrase, alt = its display title (fallback)
+// Reply: { ready, results: [{ matched, sure, results: [product, ...] }, ...] }
+app.post('/products', (req, res) => {
+  const ip = getClientIp(req);
+  const now = Date.now();
+  let rec = productMinute.get(ip);
+  if (!rec || rec.resetAt <= now) { rec = { count: 0, resetAt: now + 60_000 }; productMinute.set(ip, rec); }
+  if (++rec.count > 60) return res.status(429).json({ error: 'Too many requests' });
+
+  const raw = Array.isArray(req.body?.items) ? req.body.items.slice(0, 24) : [];
+  const items = raw.map(q => ({
+    text: String(q?.text || '').slice(0, 200),
+    material: String(q?.material || '').slice(0, 80),
+    price: String(q?.price || '').slice(0, 40),
+    alt: String(q?.alt || '').slice(0, 120),
+  }));
+  const limit = Math.min(Math.max(parseInt(req.body?.limit, 10) || 4, 1), 8);
+
+  const results = hoeffner.searchMany(items, limit);
+  // Feed not loaded yet (cold start): the frontend falls back to category links
+  if (!results) return res.json({ ready: false, results: [] });
+  res.set('Cache-Control', 'no-store');
+  res.json({ ready: true, results });
 });
 
 // Anthropic Messages API proxy
@@ -247,6 +284,8 @@ app.post('/gemini', async (req, res) => {
 });
 
 // ─── START ─────────────────────────────────────────────────────────
+hoeffner.load();
+
 app.listen(PORT, () => {
   console.log(`✅ Reima proxy listening on http://localhost:${PORT}`);
   console.log(`   Rate limits: ${RL.PER_IP_PER_MIN}/min, ${RL.PER_IP_PER_DAY}/day per IP, ${RL.GLOBAL_PER_DAY}/day global`);

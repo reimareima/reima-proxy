@@ -225,7 +225,8 @@ const MATERIALS = [
   ['strick',    /strick/],
   ['jute',      /jute/],
   ['sisal',     /sisal/],
-  ['rattan',    /rattan|korbgeflecht|wiener geflecht|peddigrohr/],
+  // natural weaves look alike: a woven bamboo lamp is fine for "Rattan"
+  ['rattan',    /rattan|korbgeflecht|wiener geflecht|peddigrohr|bambus|geflochten|seegras|wasserhyazinthe/],
   ['geflecht',  /rattan|korbgeflecht|wiener geflecht/],
   ['bambus',    /bambus/],
   ['eiche',     /eiche/],
@@ -408,6 +409,7 @@ function scoreItem(it, Q, pathW) {
   if (Q.wood) {
     if (Q.wood.includes(it.colour)) s += 12;
     else if (/^(Weiß|Grau|Schwarz|Silber)$/.test(it.colour)) s -= 12;
+    else if (/^(Gelb|Grün|Rot|Blau|Rosa|Lila|Orange|Türkis|Bunt)$/.test(it.colour)) s -= 15;
   }
   if (Q.massiv && /dekor/.test(all) && !/massiv/.test(all)) s -= 12;
 

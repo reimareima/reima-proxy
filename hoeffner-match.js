@@ -74,9 +74,9 @@ const TYPE_RULES = [
   // ── Seating
   [/chefsessel|bürostuhl|schreibtischstuhl|drehstuhl|bürosessel|gamingstuhl/, ['Stühle > Bürostühle']],
   [/sitzsack/,                                      ['Hocker > Sitzsäcke']],
-  [/pouf|sitzpouf|fußhocker|polsterhocker/,         ['Hocker > Sitzpouf', 'Hocker@0.6']],
+  [/pouf|sitzpouf|fußhocker|polsterhocker/,         ['Hocker > Sitzpouf', 'Hocker=@0.6']],
   [/barhocker|tresenhocker/,                        ['Hocker > Barhocker']],
-  [/hocker/,                                        ['Hocker', 'Hocker > Sitzpouf@0.6']],
+  [/hocker/,                                        ['Hocker=', 'Hocker > Sitzpouf@0.6']],
   [/ohrensessel/,                                   [SESSEL + 'Ohrensessel']],
   [/relaxsessel|fernsehsessel|tv-sessel|liegesessel/, [SESSEL + 'Relaxsessel', SESSEL + 'Fernsehsessel']],
   [/schaukelsessel/,                                [SESSEL + 'Schaukelsessel']],
@@ -125,12 +125,12 @@ const TYPE_RULES = [
   [/schreibtisch|computertisch/,                    ['Tische > Schreibtische', 'Tische > Computertische']],
   [/couchtisch|sofatisch|wohnzimmertisch/,          ['Tische > Couchtische']],
   [/blumenständer|pflanzenständer/,                 ['Tische > Beistelltische > Blumenständer']],
-  [/beistelltisch|satztisch/,                       ['Tische > Beistelltische']],
+  [/beistelltisch|satztisch/,                       ['Tische > Beistelltische > Beistelltische ohne Rollen', 'Tische > Beistelltische > Beistelltische mit Schublade', 'Tische > Beistelltische > Beistelltische auf Rollen@0.7']],
   [/konsole|konsolentisch|wandtisch/,               ['Tische > Konsolentische']],
   [/bartisch|stehtisch/,                            ['Tische > Bartische']],
   [/servierwagen|rollwagen|teewagen/,               ['Tische > Servierwagen']],
   [/esstisch|küchentisch|esszimmertisch/,           ['Tische > Esstische']],
-  [/tisch/,                                         ['Tische > Esstische', 'Tische > Couchtische@0.7', 'Tische > Beistelltische@0.6']],
+  [/tisch/,                                         ['Tische > Esstische', 'Tische > Couchtische@0.7', 'Tische > Beistelltische > Beistelltische ohne Rollen@0.6']],
 
   // ── Storage
   [/kleiderschrank/,                                ['Schränke > Kleiderschränke']],
@@ -329,16 +329,18 @@ function parseQuery(q) {
   // "Teppich Jute" -> Naturteppiche), but never a different product type
   // ("Sessel mit Kissen" stays a Sessel).
   if (rule) {
-    const fam = p => p.split('@')[0].split(' > ').slice(0, 2).join(' > ');
+    const fam = p => p.split('@')[0].replace(/=$/, '').split(' > ').slice(0, 2).join(' > ');
     const ruleFams = new Set(rule[1].map(fam));
     const better = TYPE_RULES.find(r => r !== rule && TYPE_RULES.indexOf(r) < TYPE_RULES.indexOf(rule)
       && r[0].test(text) && r[1].every(p => ruleFams.has(fam(p))) && r[1].length <= rule[1].length);
     if (better) rule = better;
   }
 
+  // "Path@0.5" = weight 0.5, "Path=" = this exact category only (not its children)
   const paths = rule ? rule[1].map(p => {
-    const [path, w] = p.split('@');
-    return { path, w: w ? parseFloat(w) : 1 };
+    const [raw, w] = p.split('@');
+    const exact = raw.endsWith('=');
+    return { path: exact ? raw.slice(0, -1) : raw, exact, w: w ? parseFloat(w) : 1 };
   }) : [];
 
   let colour = null;
@@ -427,7 +429,7 @@ function search(index, query, limit = 4) {
   const best = new Map();   // collapse variants by title
   for (const it of index.items) {
     let pathW = 0;
-    for (const p of Q.paths) if (it.path === p.path || it.path.startsWith(p.path + ' >')) { pathW = Math.max(pathW, p.w); }
+    for (const p of Q.paths) if (it.path === p.path || (!p.exact && it.path.startsWith(p.path + ' >'))) { pathW = Math.max(pathW, p.w); }
     if (!pathW) continue;
     if (Q.need && !Q.need.test(it.t)) continue;
     const { s, why, sure } = scoreItem(it, Q, pathW);

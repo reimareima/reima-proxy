@@ -26,8 +26,12 @@ const SESSEL = 'Polstermöbel > Sessel > ';
 
 const TYPE_RULES = [
   // ── Lighting
-  [/nachttischlampe|nachttischleuchte|tischlampe|tischleuchte|leselampe|schreibtischlampe|schreibtischleuchte/,
-                                                   ['Lampen & Leuchten > Tischlampen', 'Lampen & Leuchten > Möbelleuchten@0.3']],
+  [/schreibtischlampe|schreibtischleuchte|arbeitsleuchte|klemmleuchte/, ['Lampen & Leuchten > Tischlampen']],
+  // a bedside or living-room table lamp is not a desk lamp with Qi charger,
+  // a clamp light or cabinet lighting
+  [/nachttischlampe|nachttischleuchte|tischlampe|tischleuchte|leselampe/,
+                                                   ['Lampen & Leuchten > Tischlampen'],
+                                                   /^(?!.*(schreibtisch|klemm|qi-charger|touchpad|beleuchtung|akkuleuchte|arbeitsleuchte)).*/],
   [/bogenlampe|bogenleuchte|stehlampe|stehleuchte|deckenfluter/, ['Lampen & Leuchten > Stehlampen']],
   [/pendel|hängelampe|hängeleuchte|esstischlampe/,  ['Lampen & Leuchten > Hängeleuchten']],
   [/deckenlampe|deckenleuchte|deckenlicht/,         ['Lampen & Leuchten > Deckenleuchten']],

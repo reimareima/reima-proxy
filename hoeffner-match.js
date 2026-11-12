@@ -236,6 +236,8 @@ const MATERIALS = [
   ['chenille',  /chenille/],
   ['strick',    /strick/],
   ['jute',      /jute/],
+  ['seegras',   /seegras|wasserhyazinthe|rattan|korbgeflecht/],
+  ['wasserhyazinthe', /wasserhyazinthe|seegras|rattan/],
   ['sisal',     /sisal/],
   // natural weaves look alike: a woven bamboo lamp is fine for "Rattan"
   ['rattan',    /rattan|korbgeflecht|wiener geflecht|peddigrohr|bambus|geflochten|seegras|wasserhyazinthe/],
@@ -335,6 +337,7 @@ function buildIndex(rows) {
       price,
       oldPrice: parseFloat(r.product_price_old) || 0,
       image: hoeffnerImage(r.aw_image_url),
+      image2: String(r.aw_image_url || '').replace('w=200&h=200', 'w=400&h=400'),
       link: r.aw_deep_link,
       delivery: r.delivery_time || '',
       // what we search in: title weighs most, so it's kept separate
@@ -427,7 +430,12 @@ function scoreItem(it, Q, pathW) {
   let matHits = 0;
   const matText = (it.t + ' ' + it.material).toLowerCase();
   for (const re of Q.materials) {
+    // Wood that the title doesn't name only counts on a brown piece: white
+    // or beige furniture "mit Eiche-Akzenten" (a white coat panel with an oak
+    // shelf, a white kids' shelf, a gilded frame) isn't an oak/wood piece.
+    const woodOff = WOODY.test(re.source) && !re.test(it.t) && it.colour && it.colour !== 'Braun';
     if (re.test(it.t)) { s += 28; matHits++; why.push('mat'); }
+    else if (woodOff && re.test(all)) { s += 6; why.push('mat?'); }
     else if (re.test(matText)) { s += 22; matHits++; why.push('mat'); }
     // Höffner often names wood, metal, glass or stone only in the description
     // ("Front in Eiche-Optik", "Gestell aus Messing"). That counts, for wood
@@ -435,7 +443,7 @@ function scoreItem(it, Q, pathW) {
     // Fabrics and fibres must be in title or material field: "Füße aus Holz"
     // or "wie Seegras" in a description made stools and bags look right.
     else if (re.test(all) && HARD_MAT.test(re.source)
-             && (!WOODY.test(re.source) || !it.colour || /^(Braun|Beige|Creme)$/.test(it.colour))) {
+             && (!WOODY.test(re.source) || !it.colour || it.colour === 'Braun')) {
       s += 18; matHits++; why.push('mat~');
     }
     else if (re.test(all)) { s += 6; why.push('mat?'); }
@@ -538,7 +546,7 @@ function search(index, query, limit = 4) {
     colour: Q.colour ? Q.colour[0] : null,
     results: out.map(({ it, score, why, sure }) => ({ sure,
       id: it.id, title: it.title, price: it.price, oldPrice: it.oldPrice > it.price ? it.oldPrice : 0,
-      colour: it.colour, image: it.image, link: it.link, delivery: it.delivery,
+      colour: it.colour, image: it.image, image2: it.image2, link: it.link, delivery: it.delivery,
       category: it.path.split(' > ').slice(-1)[0], score: Math.round(score), why,
     })),
   };

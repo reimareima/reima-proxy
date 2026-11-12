@@ -248,6 +248,7 @@ function buildIndex(rows) {
       id: r.aw_product_id, dims, size: String(r.dimensions || '').replace(/\s+/g, ' ').replace(/X/, 'x').trim(),
       price, oldPrice: parseFloat(r.product_price_old) || 0,
       image: teppichImage(r.aw_image_url),
+      image2: String(r.aw_image_url || '').replace('w=200&h=200', 'w=400&h=400'),
       link: r.aw_deep_link, delivery: r.delivery_time || '',
     });
   }
@@ -520,7 +521,7 @@ function search(index, query, limit = 4) {
       sure, id: v.id,
       title: `${m.title}, ${v.size}`,
       price: v.price, oldPrice: v.oldPrice > v.price ? v.oldPrice : 0,
-      colour: m.colour, image: v.image, link: v.link, delivery: v.delivery,
+      colour: m.colour, image: v.image, image2: v.image2, link: v.link, delivery: v.delivery,
       size: v.size, category: m.kids ? 'Kinderteppich' : m.outdoor ? 'In- & Outdoor' : 'Teppich',
       score: Math.round(s), why,
     })),

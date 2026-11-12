@@ -118,7 +118,7 @@ const COLOURS = [
 // Query word -> material in the feed's custom_1
 const MATERIALS = [
   [/baumwoll/, 'Baumwolle'],
-  [/(^|[^m])woll|schurwoll|\bwool/, 'Wolle'],
+  [/(?<!baum)woll|\bwool/, 'Wolle'],
   [/jute|sisal|seegras|naturfaser/, 'Jute'],
   [/viskose|viscose|seidenglanz/, 'Viskose'],
 ];
@@ -155,7 +155,7 @@ const FEATURES = [
 
 // Not rugs, or nothing teppich.de can honestly offer
 const NOT_RUG = /kuscheldecke|kunstrasen|pendelleuchte|puzzlematte|antirutschmatte/i;
-const EXCLUDE_Q = /teppichboden|auslegware|kunstrasen|tischläufer|treppenläufer|fußmatte|fussmatte|türmatte|schmutzfang/;
+const EXCLUDE_Q = /wandteppich|wandbehang|makramee|teppichboden|auslegware|kunstrasen|tischläufer|treppenläufer|fußmatte|fussmatte|türmatte|schmutzfang/;
 // Real sheepskin / cowhide: teppich.de only has faux fur
 const REAL_FUR_Q = /schaffell|lammfell|kuhfell|echtfell|naturfell|rinderfell/;
 
@@ -267,8 +267,10 @@ function parseQuery(q) {
     const w = Math.min(+sm[1], +sm[2]), h = Math.max(+sm[1], +sm[2]);
     size = { w, h };
     if (!shape && h / w >= 2.4) shape = 'laeufer';
-  } else if ((sm = text.match(/(?:ø|durchmesser)\s*(\d{2,3})|(\d{2,3})\s*cm\s*(?:rund|ø|durchmesser)/))) {
-    const d = +(sm[1] || sm[2]); size = { w: d, h: d }; shape = shape || 'rund';
+  } else if ((sm = text.match(/(?:ø|durchmesser)\s*(\d{2,3})|(\d{2,3})\s*cm\s*(?:rund|ø|durchmesser)|rund\w*\s+(\d{2,3})\s*cm/))) {
+    const d = +(sm[1] || sm[2] || sm[3]); size = { w: d, h: d }; shape = shape || 'rund';
+  } else if (shape === 'rund' && (sm = text.match(/(\d{2,3})\s*cm/))) {
+    size = { w: +sm[1], h: +sm[1] };
   }
 
   let colour = null;
@@ -277,7 +279,12 @@ function parseQuery(q) {
     if (hit) { colour = { exact: hit[1], close: hit[2], site: hit[3], word: w }; break; }
   }
 
-  const material = (MATERIALS.find(([re]) => re.test(text)) || [])[1] || null;
+  // the material named first counts ("Wolle oder Baumwolle" = wool)
+  let material = null, matPos = Infinity;
+  for (const [re, mat] of MATERIALS) {
+    const m = text.match(re);
+    if (m && m.index < matPos) { matPos = m.index; material = mat; }
+  }
   const styles = STYLES.filter(([re]) => re.test(text)).map(([, s]) => s);
   const patterns = PATTERNS.filter(([re]) => re.test(text)).map(([, s]) => s);
   const features = FEATURES.filter(([re]) => re.test(text)).map(([, s]) => s);
@@ -314,9 +321,11 @@ function pickVariant(m, Q) {
     const same = pool.filter(v => v.dims.shape === shape);
     if (same.length) pool = same;
   } else {
-    // no shape asked: a normal rectangle (not a runner or a round one)
+    // no shape asked: a normal rectangle (not a runner or a round one).
+    // A model that only comes round or square isn't the rug that was meant.
     const rect = pool.filter(v => v.dims.shape === 'rechteck');
-    if (rect.length) pool = rect;
+    if (!rect.length) return { v: pool[0] ? pool.reduce((a, b) => (b.price < a.price ? b : a)) : null, sizeOk: false };
+    pool = rect;
   }
   const area = want.w * want.h;
   let best = null, bestD = Infinity;
@@ -363,7 +372,7 @@ function scoreModel(m, Q) {
   }
 
   if (Q.material) {
-    if (m.materials.has(Q.material)) { s += 30; why.push('mat'); }
+    if (m.materials.has(Q.material)) { s += m.materials.size === 1 ? 36 : 30; why.push('mat'); }
     else { s -= 25; fail.push('material'); }
   }
 
@@ -392,10 +401,14 @@ function scoreModel(m, Q) {
     if (m.pattern === 'Einfarbig') s += 8;
     else {
       if (Q.colour && Q.colour.site !== 'Mehrfarbig' && m.colour === 'Mehrfarbig') s -= 10;
-      // a patterned rug only counts when its colour is exactly the one asked
-      // (a black-and-white Moroccan rug listed as "weiß" isn't "elfenbein")
-      if (Q.colour && !Q.colour.exact.includes(m.colour)) fail.push('pattern');
+      // The AI names patterns when the rug has one ("gestreift", "Vintage",
+      // "Kelim"). Without that, a striped or printed rug isn't the one meant.
+      s -= 10;
+      fail.push('pattern');
     }
+  } else if (/dezent|subtil|ton.in.ton|leicht gemustert/.test(Q.text) && Q.colour && !Q.colour.exact.includes(m.colour)) {
+    // "dezentes Muster" in ivory: a bold black-and-white rug listed as "weiß" isn't it
+    fail.push('pattern');
   }
   if (Q.berber) {
     if (m.berber) { s += 30; why.push('berber'); }

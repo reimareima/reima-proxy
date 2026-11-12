@@ -98,7 +98,7 @@ const TYPE_RULES = [
   [/sofa|couch(?!tisch)/,                           ['Polstermöbel > Sofas > 3-Sitzer', 'Polstermöbel > Sofas > 2-Sitzer', 'Polstermöbel > Sofas > Einzelsofas',
                                                      'Polstermöbel > Sofas > Big-Sofas', 'Polstermöbel > Sofas > Modulsofas@0.8', 'Polstermöbel > Sofas > Ecksofas@0.5']],
   [/eckbank/,                                       ['Bänke > Eckbänke']],
-  [/sitzbank|bank\b|bänke/,                         ['Bänke > Einzelbänke']],
+  [/sitzbank|bank\b|bänke/,                         ['Bänke > Einzelbänke'], /bank/],
   [/freischwinger|schwingstuhl/,                    ['Stühle > Schwingstühle']],
   [/klappstuhl/,                                    ['Stühle > Klappstühle']],
   [/küchenstuhl/,                                   ['Stühle > Küchenstühle']],
@@ -130,7 +130,8 @@ const TYPE_RULES = [
   [/bartisch|stehtisch/,                            ['Tische > Bartische']],
   [/servierwagen|rollwagen|teewagen/,               ['Tische > Servierwagen']],
   [/esstisch|küchentisch|esszimmertisch/,           ['Tische > Esstische']],
-  [/tisch/,                                         ['Tische > Esstische', 'Tische > Couchtische@0.7', 'Tische > Beistelltische > Beistelltische ohne Rollen@0.6']],
+  // only real tables: "minimalistisch", "magnetisch", "romantisch" also end in -tisch
+  [/\btische?\b|(bistro|garten|balkon|klapp|tee|kaffee|arbeits|spiel|holz|glas|marmor|ausziehbarer?|runder?|ovaler?)tisch/, ['Tische > Esstische', 'Tische > Couchtische@0.7', 'Tische > Beistelltische > Beistelltische ohne Rollen@0.6']],
 
   // ── Storage
   [/kleiderschrank/,                                ['Schränke > Kleiderschränke']],
@@ -167,21 +168,24 @@ const TYPE_RULES = [
   [/schrank|schränke/,                              ['Schränke > Dielenschränke', 'Schränke > Mehr Schränke', 'Schränke > Vitrinen@0.6', 'Schränke > Kleiderschränke@0.6']],
 
   // ── Decor
+  [/standspiegel|ganzkörperspiegel|bodenspiegel/,  ['Accessoires > Spiegel'], /stand|ganzkörper|boden/],
+  [/wandspiegel/,                                   ['Accessoires > Spiegel', 'Garderoben & Kleiderstangen > Garderoben Spiegel'], /^(?!.*(standspiegel|ganzkörper|bodenspiegel)).*/],
   [/spiegel/,                                       ['Accessoires > Spiegel', 'Garderoben & Kleiderstangen > Garderoben Spiegel']],
   [/bilderrahmen/,                                  ['Accessoires > Bilderrahmen']],
   [/wanduhr|\buhr\b/,                               ['Accessoires > Uhren']],
   [/vase/,                                          ['Accessoires > Vasen']],
   [/schale|schüssel/,                               ['Accessoires > Deko-Schalen']],
   [/tablett|etagere/,                               ['Küchenzubehör & Helfer > Küchenhelfer > Tabletts & Etageren', 'Accessoires > Deko-Schalen@0.5']],
+  [/kronleuchter|lüster|chandelier/,               ['Lampen & Leuchten > Hängeleuchten', 'Lampen & Leuchten > Deckenleuchten']],
   [/kerzenständer|kerzenhalter|kerzenleuchter/,     ['Accessoires > Kerzen & Kerzenständer > Kerzenständer', 'Accessoires > Kerzen & Kerzenständer@0.6']],
   [/teelicht/,                                      ['Accessoires > Kerzen & Kerzenständer > Teelichthalter']],
   [/laterne|windlicht/,                             ['Accessoires > Kerzen & Kerzenständer', 'Accessoires > Dekoartikel@0.6'], /laterne|windlicht/],
-  [/kerze/,                                         ['Accessoires > Kerzen & Kerzenständer']],
+  [/kerze/,                                         ['Accessoires > Kerzen & Kerzenständer'], /kerze/],
   [/figur|skulptur|deko|objekt|buchstütze/,         ['Accessoires > Dekoartikel']],
 ];
 
 // Never matched (Höffner doesn't carry these well; also plants by request)
-const EXCLUDE_RE = /vinyl|laminat|parkett|fliese|tapete|wandfarbe|teppichboden|bodenbelag|sockelleiste|led-?streifen|led strip|lichterkette|glühbirne|leuchtmittel|smart plug|steckdose|kabel|pflanze|(oliven|zitronen|geld|gummi|feigen|lorbeer|bananen|kunst|zier|zimmer)baum|monstera|ficus|palme|kaktus|eukalyptus|bonsai|trockenblume|pampas|kunstblume/;
+const EXCLUDE_RE = /wandteppich|wandbehang|makramee|vinyl|laminat|parkett|fliese|tapete|wandfarbe|teppichboden|bodenbelag|sockelleiste|led-?streifen|led strip|lichterkette|glühbirne|leuchtmittel|smart plug|steckdose|kabel|pflanze|(oliven|zitronen|geld|gummi|feigen|lorbeer|bananen|kunst|zier|zimmer)baum|monstera|ficus|palme|kaktus|eukalyptus|bonsai|trockenblume|pampas|kunstblume/;
 
 // Query colour words -> Höffner feed colours. First entry = exact match,
 // the rest count as "close enough".
@@ -262,7 +266,7 @@ const MATERIALS = [
 // Feature words with the different ways Höffner writes them
 const FEATURE_SYNONYMS = {
   rillen: /rillen|riffel|gerillt|lamellen|rippen/, gerillt: /rillen|riffel|gerillt|lamellen|rippen/,
-  plissee: /plissee|plissiert|falten/, opalglas: /opal|milchglas|satiniert/, kugel: /kugel|globe/,
+  plissee: /plissee|plissiert|falten/, opalglas: /opal|milchglas|satiniert/, kugel: /kugel|globe/, tripod: /tripod|dreibein/,
   schwebend: /schwebend|hängend|wandmontage|wandhänge/, geflochten: /geflecht|geflochten/,
   rund: /rund|ø/, ausziehbar: /ausziehbar|ausziehfunktion|auszug/, dimmbar: /dimmbar|dimmfunktion/,
   schlaffunktion: /schlaffunktion|bettfunktion/, bettkasten: /bettkasten|stauraum/,
@@ -281,7 +285,7 @@ const FEATURES = ['rund', 'oval', 'eckig', 'quadratisch', 'rechteckig', 'auszieh
   'rollen', 'schubladen', 'türen', 'glastüren', 'offen', 'klappbar', 'kissen', 'fransen', 'muster', 'gestreift',
   'karo', 'hochflor', 'kurzflor', 'waschbar', 'blickdicht', 'transparent', 'verdunkelung', 'led', 'kabellos',
   'akku', 'groß', 'klein', 'schmal', 'breit', 'hoch', 'niedrig', 'xxl', 'mini', 'organisch', 'geschwungen',
-  'plissee', 'opalglas'];
+  'plissee', 'opalglas', 'tripod'];
 // Words too vague to decide whether a product really is "the one"
 const GENERIC = new Set(['groß', 'große', 'großer', 'klein', 'kleine', 'modern', 'moderne', 'schmal', 'breit', 'hoch',
   'niedrig', 'xxl', 'mini', 'klassisch', 'minimalistisch', 'skandinavisch', 'organisch', 'japandi', 'boho', 'retro',
@@ -438,7 +442,16 @@ function scoreItem(it, Q, pathW) {
     return re ? re.test(all) : all.includes(w.length > 5 ? w.slice(0, -1) : w);
   }).length;
   const keysOk = keyHits * 2 >= Q.keys.length;
-  return { s, why, sure: colourOk && materialOk && keysOk };
+  // far outside the expected price: not the product that was meant
+  const priceOk = !Q.priceMax || (it.price <= Q.priceMax * 2 && it.price >= Q.priceMin * 0.3);
+  // a corner desk/sofa/bench only when a corner piece was asked for
+  const cornerOk = !/^eck|\beck/.test(it.t) || /\beck|^eck|l-form|u-form/.test(Q.text);
+  // novelty shapes (3D shell vase, strawberry vase ...) only when asked
+  const novelty = /\b3d\b|muschel|erdbeer|ananas|gesicht|\bkopf|\beule\b|hund\b|katze/.test(it.t) && !/\b3d\b|muschel|erdbeer|ananas|gesicht|kopf|eule|hund|katze/.test(Q.text);
+  if (!priceOk) s -= 15;
+  if (!cornerOk) s -= 20;
+  if (novelty) s -= 25;
+  return { s, why, sure: colourOk && materialOk && keysOk && priceOk && cornerOk && !novelty };
 }
 
 // query: { text, material?, price? }  ->  { type, results: [...] }
@@ -447,6 +460,10 @@ function search(index, query, limit = 4) {
   // No product type in the search phrase? Try the card's display title.
   if (!Q.paths.length && !Q.excluded && query.alt) Q = parseQuery({ ...query, text: `${query.alt} ${query.text}` });
   if (Q.excluded || !Q.paths.length) return { matched: false, reason: Q.excluded ? 'excluded' : 'no-type', results: [] };
+  if (Q.paths.some(p => p.path.startsWith('Betten >')) && !/polster|boxspring/.test(Q.text)
+      && Q.materials.some(re => re.test('eiche buche kiefer nussbaum holz massiv akazie'))) {
+    Q.paths = Q.paths.filter(p => !/Polsterbetten|Boxspringbetten/.test(p.path));
+  }
 
   const best = new Map();   // collapse variants by title
   for (const it of index.items) {

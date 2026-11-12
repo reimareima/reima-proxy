@@ -162,6 +162,16 @@ const REAL_FUR_Q = /schaffell|lammfell|kuhfell|echtfell|naturfell|rinderfell/;
 // Feed colours that don't match the product photo (checked by eye)
 const COLOUR_FIX = { 'handwebteppich orkide beige': 'Braun' };
 
+// productserve URL -> teppich.de's own 300px thumbnail (Shopware), which
+// loads reliably; Awin's image proxy can show "No image" on first request
+function teppichImage(u) {
+  const src = decodeURIComponent((String(u || '').match(/[?&]url=([^&]+)/) || [])[1] || '').replace(/^ssl:/, 'https://');
+  if (/^https:\/\/www\.teppich\.de\/media\//.test(src)) {
+    return src.replace('/media/', '/thumbnail/').replace(/\.(jpe?g|png|webp)(\?.*)?$/i, (x, e) => `_300x300.${e}`);
+  }
+  return String(u || '').replace('w=200&h=200', 'w=400&h=400');
+}
+
 function norm(s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
 const split = s => String(s || '').split(/\s*,\s*/).map(x => x.trim()).filter(Boolean);
 
@@ -237,7 +247,7 @@ function buildIndex(rows) {
     m.variants.push({
       id: r.aw_product_id, dims, size: String(r.dimensions || '').replace(/\s+/g, ' ').replace(/X/, 'x').trim(),
       price, oldPrice: parseFloat(r.product_price_old) || 0,
-      image: String(r.aw_image_url || '').replace('w=200&h=200', 'w=400&h=400'),
+      image: teppichImage(r.aw_image_url),
       link: r.aw_deep_link, delivery: r.delivery_time || '',
     });
   }

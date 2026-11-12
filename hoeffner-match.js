@@ -73,7 +73,8 @@ const TYPE_RULES = [
   [/teppich/,                                       RUGS],
 
   // ── Seating
-  [/chefsessel|bürostuhl|schreibtischstuhl|drehstuhl|bürosessel|gamingstuhl/, ['Stühle > Bürostühle']],
+  [/gaming/,                                        ['Stühle > Bürostühle'], /gaming/],
+  [/chefsessel|bürostuhl|schreibtischstuhl|drehstuhl|bürosessel/, ['Stühle > Bürostühle'], /^(?!.*(gaming|kinder)).*/],
   [/sitzsack/,                                      ['Hocker > Sitzsäcke']],
   [/pouf|sitzpouf|fußhocker|polsterhocker/,         ['Hocker > Sitzpouf', 'Hocker=@0.6']],
   [/barhocker|tresenhocker/,                        ['Hocker > Barhocker']],
@@ -90,12 +91,12 @@ const TYPE_RULES = [
                                                      SESSEL + 'Relaxsessel@0.25', SESSEL + 'Fernsehsessel@0.15']],
   [/recamiere|récamière|récamiere|ottomane|chaiselongue/, ['Polstermöbel > Ottomanen & Recamiere']],
   [/daybed|liege\b|relaxliege/,                     ['Polstermöbel > Liegen', 'Polstermöbel > Relaxliegen']],
-  [/schlafsofa|schlafcouch|bettsofa/,               ['Polstermöbel > Sofas > Schlafsofas']],
+  [/schlafsofa|schlafcouch|bettsofa/,               ['Polstermöbel > Sofas > Schlafsofas'], /schlaf|bettfunktion/],
   [/wohnlandschaft|u-sofa|u-form|big-sofa|bigsofa/, ['Polstermöbel > Sofas > Wohnlandschaften', 'Polstermöbel > Sofas > Big-Sofas']],
   [/ecksofa|eckcouch|ecksofas|l-sofa|l-form/,       ['Polstermöbel > Sofas > Ecksofas']],
   [/modulsofa|modul-sofa/,                          ['Polstermöbel > Sofas > Modulsofas']],
-  [/2-sitzer|zweisitzer/,                           ['Polstermöbel > Sofas > 2-Sitzer']],
-  [/3-sitzer|dreisitzer/,                           ['Polstermöbel > Sofas > 3-Sitzer']],
+  [/2-sitzer|zweisitzer/,                           ['Polstermöbel > Sofas > 2-Sitzer'], /^(?!.*(big|einzelsofa|wohnlandschaft|ecksofa)).*/],
+  [/3-sitzer|dreisitzer/,                           ['Polstermöbel > Sofas > 3-Sitzer'], /^(?!.*(big|einzelsofa|wohnlandschaft|ecksofa)).*/],
   [/sofa|couch(?!tisch)/,                           ['Polstermöbel > Sofas > 3-Sitzer', 'Polstermöbel > Sofas > 2-Sitzer', 'Polstermöbel > Sofas > Einzelsofas',
                                                      'Polstermöbel > Sofas > Big-Sofas', 'Polstermöbel > Sofas > Modulsofas@0.8', 'Polstermöbel > Sofas > Ecksofas@0.5']],
   [/eckbank/,                                       ['Bänke > Eckbänke']],
@@ -120,7 +121,7 @@ const TYPE_RULES = [
                                                      'Betten > Doppelbetten', 'Betten > Einzelbetten', 'Betten > Komfortbetten@0.7', 'Betten > Boxspringbetten@0.4']],
 
   // ── Tables
-  [/nachttisch|nachtkonsole|nachtschrank/,          ['Tische > Nachttische']],
+  [/nachttisch|nachtkonsole|nachtschrank/,          ['Tische > Nachttische'], /nacht/],
   [/schminktisch|frisiertisch|frisierkommode/,      ['Tische > Schminktische']],
   [/kinderschreibtisch/,                            ['Kindermöbel > Kinderschreibtische']],
   [/schreibtisch|computertisch/,                    ['Tische > Schreibtische', 'Tische > Computertische']],
@@ -302,6 +303,14 @@ const STOP = new Set(['mit', 'und', 'für', 'aus', 'der', 'die', 'das', 'im', 'i
 
 function norm(s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
 
+// productserve URL -> Höffner's own 360px image (medias/small); keeps the
+// proxy URL if it doesn't wrap a media.hoeffner.de zoom picture
+function hoeffnerImage(u) {
+  const src = decodeURIComponent((String(u || '').match(/[?&]url=([^&]+)/) || [])[1] || '').replace(/^ssl:/, 'https://');
+  if (/^https:\/\/media\.hoeffner\.de\/medias\/zoom\//.test(src)) return src.replace('/medias/zoom/', '/medias/small/');
+  return String(u || '').replace('w=200&h=200', 'w=400&h=400');
+}
+
 // ── Index ────────────────────────────────────────────────────────────
 // rows: objects with the Awin feed column names
 function buildIndex(rows) {
@@ -323,7 +332,7 @@ function buildIndex(rows) {
       material,
       price,
       oldPrice: parseFloat(r.product_price_old) || 0,
-      image: r.aw_image_url || '',
+      image: hoeffnerImage(r.aw_image_url),
       link: r.aw_deep_link,
       delivery: r.delivery_time || '',
       // what we search in: title weighs most, so it's kept separate
@@ -414,9 +423,13 @@ function scoreItem(it, Q, pathW) {
 
   const all = it.t + ' ' + it.x;
   let matHits = 0;
+  const matText = (it.t + ' ' + it.material).toLowerCase();
   for (const re of Q.materials) {
     if (re.test(it.t)) { s += 28; matHits++; why.push('mat'); }
-    else if (re.test(all)) { s += 20; matHits++; why.push('mat~'); }
+    // the material field counts; a word somewhere in the description
+    // ("Füße aus Holz", "wie Seegras") only helps the ranking
+    else if (re.test(matText)) { s += 22; matHits++; why.push('mat'); }
+    else if (re.test(all)) { s += 8; why.push('mat~'); }
     else s -= 8;
   }
   if (Q.wood) {

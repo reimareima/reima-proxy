@@ -271,8 +271,11 @@ const MATERIALS = [
   ['papier',    /papier/],
   ['stoff',     /stoff|webstoff/],
   ['filz',      /filz/],
-  ['seide',     /seide/],
+  ['perkal',    /perkal|percale/],
+  ['percale',   /perkal|percale/],
   ['satin',     /satin/],
+  ['damast',    /damast/],
+  ['seide',     /seide/],
   ['kunstleder', /kunstleder/],
 ];
 

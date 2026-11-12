@@ -478,7 +478,8 @@ function scoreItem(it, Q, pathW) {
   }
   // "sure" needs the colour itself or a truly near shade (creme for weiß),
   // not just the same family (grau for schwarz, rot for terrakotta)
-  const colourOk = !Q.colour || it.colour === Q.colour[0] || (NEAR_COLOUR[Q.colour[0]] || []).includes(it.colour);
+  // Höffner's "Bunt" tag is unreliable (grey rugs carry it): never sure on it
+  const colourOk = !Q.colour || (Q.colour[0] !== 'Bunt' && (it.colour === Q.colour[0] || (NEAR_COLOUR[Q.colour[0]] || []).includes(it.colour)));
   // a fallback category (relax chair for "Sessel", ottoman for "Pouf") is never "the one"
   const typeOk = pathW >= 0.7;
   // every material asked for must be there ("Messing + Opalglas" = both)

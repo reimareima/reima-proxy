@@ -388,6 +388,8 @@ function parseQuery(q) {
   // product is "the one"
   const multiColour = colourHits.length > 1 && colourHits.some(h => h[1][0] !== colour[0] && !colour.includes(h[1][0]));
   // anthracite / dark grey is not any grey
+  // "Kinderregal", "Kinderstuhl": an adult piece is not the one
+  const kids = /\bkinder(?!zimmer)[a-zäöü]{3,}/.test(text);
   const darkGrey = /anthrazit|dunkelgrau|graphit|schiefergrau/.test(text);
 
   // material: from the explicit field first, then the text
@@ -425,7 +427,7 @@ function parseQuery(q) {
   const ln = size ? null : text.match(/\b(\d{2,3})\s*cm\b/);
   const len = ln ? +ln[1] : null;
 
-  return { text, size, len, multiColour, darkGrey, rule, need: rule && rule[2], paths, colour, wood, massiv, materials, features, rest, keys, priceMin, priceMax,
+  return { text, size, len, multiColour, darkGrey, kids, rule, need: rule && rule[2], paths, colour, wood, massiv, materials, features, rest, keys, priceMin, priceMax,
     // The first word naming a type wins ("Rattankorb mit Pflanze" is a basket);
     // otherwise anything that mentions plants, flooring etc. is skipped
     excluded: firstRule ? false : EXCLUDE_RE.test(text) };
@@ -510,7 +512,7 @@ function scoreItem(it, Q, pathW) {
   const cornerOk = !/^eck|\beck/.test(it.t) || /\beck|^eck|l-form|u-form/.test(Q.text);
   // novelty shapes (3D shell vase, strawberry vase ...) only when asked
   const NOVELTY = /\b3d\b|muschel|erdbeer|ananas|gesicht|\bkopf|\beule|\bhund|katze|hummer|fisch|vogel|hase\b|elefant|flamingo|\bhand\b|lippen|buddha|totenkopf|herz\b/;
-  const novelty = NOVELTY.test(it.t) && !NOVELTY.test(Q.text);
+  const novelty = (NOVELTY.test(it.t) && !NOVELTY.test(Q.text)) || (Q.kids && !/kinder|kids|jugend|baby/.test(all));
   // a size in the title ("Bettgestell 120x200") must be the asked one ("160x200")
   const tSize = it.t.match(/(\d{2,3})\s*x\s*(\d{2,3})/);
   let sizeOk = !Q.size || !tSize || (Math.abs(+tSize[1] - Q.size[0]) <= 10 && Math.abs(+tSize[2] - Q.size[1]) <= 15)

@@ -506,7 +506,9 @@ function scoreItem(it, Q, pathW) {
     const re = FEATURE_SYNONYMS[w];
     return re ? re.test(all) : all.includes(w.length > 5 ? w.slice(0, -1) : w);
   }).length;
-  const keysOk = keyHits * 2 >= Q.keys.length;
+  // material-like shapes (rice paper, mushroom lamp, tripod) must all be there
+  const MUST = /^(pilz|reispapier|washi|tripod|plissee|opalglas)$/;
+  const keysOk = keyHits * 2 >= Q.keys.length && Q.keys.filter(w => MUST.test(w)).every(w => FEATURE_SYNONYMS[w].test(all));
   // far outside the expected price: not the product that was meant
   const priceOk = !Q.priceMax || (it.price <= Q.priceMax * 2 && it.price >= Q.priceMin * 0.3);
   // a corner desk/sofa/bench only when a corner piece was asked for

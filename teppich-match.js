@@ -457,14 +457,19 @@ function buildUrl(index, Q) {
     && (Q.kind === 'outdoor' ? m.outdoor : true));
   const path = KIND_PATH[Q.kind] || KIND_PATH.rug;
   const props = [];
+  // "complete" = every property the query names is filtered on that page.
+  // If not (no green wool rugs, no kelim filter), the page would show rugs
+  // that aren't what was asked, and the frontend lets another shop lead.
+  let asked = 0, applied = 0;
   const tryAdd = (ids, test) => {
+    asked++;
     if (!ids) return;
     const next = pool.filter(test);
-    if (next.length >= 2) { pool = next; props.push(ids); }
+    if (next.length >= 2) { pool = next; props.push(ids); applied++; }
   };
   if (Q.shape && P.shape[Q.shape]) tryAdd(P.shape[Q.shape], m => m.shapes.has(Q.shape));
   if (Q.material) tryAdd(P.material[Q.material], m => m.materials.has(Q.material));
-  if (Q.colour && P.colour[Q.colour.site]) tryAdd(P.colour[Q.colour.site], m => m.siteColour === Q.colour.site);
+  if (Q.colour) tryAdd(P.colour[Q.colour.site], m => m.siteColour === Q.colour.site);
   if (Q.pile === 'hoch' || Q.pile === 'fur') tryAdd(`${P.pile.hoch}|${P.pile.extra}`, m => m.pileClass === 'hoch' || m.pileClass === 'extra');
   else if (Q.pile === 'kurz') tryAdd(P.pile.kurz, m => m.pileClass === 'kurz');
   else if (Q.pile === 'flach') tryAdd(P.pile.flach, m => m.pileClass === 'flach');
@@ -472,7 +477,8 @@ function buildUrl(index, Q) {
   for (const pt of Q.patterns) if (!/gemustert|muster\b/.test(Q.text) || pt !== 'Geometrisch') tryAdd(P.pattern[pt], m => m.pattern === pt);
   if (Q.berber) tryAdd(P.style.Boho, m => m.styles.has('Boho'));
   for (const f of Q.features) tryAdd(P.feature[f], m => m.features.has(f));
-  return SITE + path + (props.length ? `?properties=${props.join('|')}` : '');
+  if (Q.kelim) tryAdd(null);
+  return { url: SITE + path + (props.length ? `?properties=${props.join('|')}` : ''), complete: applied === asked };
 }
 
 // ── Search ───────────────────────────────────────────────────────────
@@ -480,9 +486,9 @@ function buildUrl(index, Q) {
 function search(index, query, limit = 4) {
   const Q = parseQuery(query);
   if (Q.excluded === 'not-a-rug') return { matched: false, reason: Q.excluded, results: [] };
-  const url = buildUrl(index, Q);
-  // real fur: only the link to teppich.de's fur category, never a "this is it"
-  if (Q.excluded === 'real-fur') return { matched: false, reason: Q.excluded, url: SITE + '/fell-teppiche/', results: [] };
+  const { url, complete } = buildUrl(index, Q);
+  // real fur: teppich.de only has faux fur, so it never leads
+  if (Q.excluded === 'real-fur') return { matched: false, reason: Q.excluded, url: SITE + '/fell-teppiche/', complete: false, results: [] };
 
   const scored = [];
   for (const m of index.models) {
@@ -516,6 +522,7 @@ function search(index, query, limit = 4) {
     matched: out.length > 0,
     sure: !!(out[0] && out[0].sure),
     url,
+    complete,
     colour: Q.colour ? Q.colour.exact[0] : null,
     results: out.map(({ m, v, s, why, sure }) => ({
       sure, id: v.id,

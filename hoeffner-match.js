@@ -497,6 +497,10 @@ function scoreItem(it, Q, pathW) {
   const sizeOk = !Q.size || !tSize || (Math.abs(+tSize[1] - Q.size[0]) <= 10 && Math.abs(+tSize[2] - Q.size[1]) <= 15)
     || (Math.abs(+tSize[2] - Q.size[0]) <= 10 && Math.abs(+tSize[1] - Q.size[1]) <= 15);
   if (!sizeOk) s -= 20;
+  // between equally good matches, the one people get soon (many pieces take 9-13 weeks)
+  const weeks = (String(it.delivery).match(/(\d+)\s*woche/i) || [])[1];
+  if (/werktag|1 woche|2 wochen/i.test(it.delivery)) s += 3;
+  else if (weeks && +weeks >= 9) s -= 3;
   if (!priceOk) s -= 15;
   if (!cornerOk) s -= 20;
   if (novelty) s -= 25;

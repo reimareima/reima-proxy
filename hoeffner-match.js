@@ -280,6 +280,7 @@ const MATERIALS = [
 const FEATURE_SYNONYMS = {
   rillen: /rillen|riffel|gerillt|lamellen|rippen/, gerillt: /rillen|riffel|gerillt|lamellen|rippen/,
   plissee: /plissee|plissiert|falten/, opalglas: /opal|milchglas|satiniert/, kugel: /kugel|globe/, tripod: /tripod|dreibein/, bogen: /bogen/,
+  pilz: /pilz|mushroom/, reispapier: /reispapier|lampion|papierkugel|washi/, washi: /reispapier|lampion|papierkugel|washi/,
   schwebend: /schwebend|hängend|wandmontage|wandhänge/, geflochten: /geflecht|geflochten/,
   rund: /rund|ø/, ausziehbar: /ausziehbar|ausziehfunktion|auszug/, dimmbar: /dimmbar|dimmfunktion/,
   schlaffunktion: /schlaffunktion|bettfunktion/, bettkasten: /bettkasten|stauraum/,
@@ -298,7 +299,7 @@ const FEATURES = ['rund', 'oval', 'eckig', 'quadratisch', 'rechteckig', 'auszieh
   'rollen', 'schubladen', 'türen', 'glastüren', 'offen', 'klappbar', 'kissen', 'fransen', 'muster', 'gestreift',
   'karo', 'hochflor', 'kurzflor', 'waschbar', 'blickdicht', 'transparent', 'verdunkelung', 'led', 'kabellos',
   'akku', 'groß', 'klein', 'schmal', 'breit', 'hoch', 'niedrig', 'xxl', 'mini', 'organisch', 'geschwungen',
-  'plissee', 'opalglas', 'tripod', 'bogen'];
+  'plissee', 'opalglas', 'tripod', 'bogen', 'pilz', 'reispapier', 'washi'];
 // Words too vague to decide whether a product really is "the one"
 const GENERIC = new Set(['groß', 'große', 'großer', 'klein', 'kleine', 'modern', 'moderne', 'schmal', 'breit', 'hoch',
   'niedrig', 'xxl', 'mini', 'klassisch', 'minimalistisch', 'skandinavisch', 'organisch', 'japandi', 'boho', 'retro',

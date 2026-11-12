@@ -216,6 +216,8 @@ const COLOURS = [
   [/^(bunt|mehrfarbig|multicolor)/,                  ['Bunt']],
 ];
 
+const HARD_MAT = /eiche|buche|nussbaum|walnuss|akazie|mango|teak|kiefer|holz|massiv|messing|gold|chrom|metall|stahl|eisen|kupfer|glas|opal|marmor|stein|keramik|porzellan|beton|travertin/;
+const WOODY = /eiche|buche|nussbaum|walnuss|akazie|mango|teak|kiefer|holz|massiv/;
 const NEAR_COLOUR = { 'Weiß': ['Creme'], Creme: ['Weiß', 'Beige'], Beige: ['Creme'], Grau: ['Silber'], Silber: ['Grau'] };
 
 // Materials and finishes: query word -> words to look for in the product.
@@ -426,10 +428,17 @@ function scoreItem(it, Q, pathW) {
   const matText = (it.t + ' ' + it.material).toLowerCase();
   for (const re of Q.materials) {
     if (re.test(it.t)) { s += 28; matHits++; why.push('mat'); }
-    // the material field counts; a word somewhere in the description
-    // ("Füße aus Holz", "wie Seegras") only helps the ranking
     else if (re.test(matText)) { s += 22; matHits++; why.push('mat'); }
-    else if (re.test(all)) { s += 8; why.push('mat~'); }
+    // Höffner often names wood, metal, glass or stone only in the description
+    // ("Front in Eiche-Optik", "Gestell aus Messing"). That counts, for wood
+    // only with a wood-like colour (a white shelf "mit Holzfüßen" isn't wood).
+    // Fabrics and fibres must be in title or material field: "Füße aus Holz"
+    // or "wie Seegras" in a description made stools and bags look right.
+    else if (re.test(all) && HARD_MAT.test(re.source)
+             && (!WOODY.test(re.source) || !it.colour || /^(Braun|Beige|Creme)$/.test(it.colour))) {
+      s += 18; matHits++; why.push('mat~');
+    }
+    else if (re.test(all)) { s += 6; why.push('mat?'); }
     else s -= 8;
   }
   if (Q.wood) {

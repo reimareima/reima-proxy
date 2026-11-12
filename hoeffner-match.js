@@ -98,8 +98,8 @@ const TYPE_RULES = [
   [/wohnlandschaft|u-sofa|u-form|big-sofa|bigsofa/, ['Polstermöbel > Sofas > Wohnlandschaften', 'Polstermöbel > Sofas > Big-Sofas']],
   [/ecksofa|eckcouch|ecksofas|l-sofa|l-form/,       ['Polstermöbel > Sofas > Ecksofas']],
   [/modulsofa|modul-sofa/,                          ['Polstermöbel > Sofas > Modulsofas']],
-  [/2-sitzer|zweisitzer/,                           ['Polstermöbel > Sofas > 2-Sitzer'], /^(?!.*(big|einzelsofa|wohnlandschaft|ecksofa)).*/],
-  [/3-sitzer|dreisitzer/,                           ['Polstermöbel > Sofas > 3-Sitzer'], /^(?!.*(big|einzelsofa|wohnlandschaft|ecksofa)).*/],
+  [/(?<!\d\s?-\s?)2[\s-]?sitzer(?!\s?-\s?\d)|zweisitzer/,                           ['Polstermöbel > Sofas > 2-Sitzer'], /^(?!.*(big|einzelsofa|wohnlandschaft|ecksofa)).*/],
+  [/(?<!\d\s?-\s?)3[\s-]?sitzer|dreisitzer/,                           ['Polstermöbel > Sofas > 3-Sitzer'], /^(?!.*(big|einzelsofa|wohnlandschaft|ecksofa)).*/],
   [/sofa|couch(?!tisch)/,                           ['Polstermöbel > Sofas > 3-Sitzer', 'Polstermöbel > Sofas > 2-Sitzer', 'Polstermöbel > Sofas > Einzelsofas',
                                                      'Polstermöbel > Sofas > Big-Sofas', 'Polstermöbel > Sofas > Modulsofas@0.8', 'Polstermöbel > Sofas > Ecksofas@0.5']],
   [/eckbank/,                                       ['Bänke > Eckbänke']],
@@ -379,16 +379,27 @@ function parseQuery(q) {
   }) : [];
 
   let colour = null;
+  const colourHits = [];
   for (const w of words) {
     const hit = COLOURS.find(([re]) => re.test(w));
-    if (hit) { colour = hit[1]; break; }
+    if (hit) { if (!colour) colour = hit[1]; if (!colourHits.includes(hit)) colourHits.push(hit); }
   }
+  // two colours asked ("Creme Terrakotta", "Bordeaux Senf"): no single-colour
+  // product is "the one"
+  const multiColour = colourHits.length > 1 && colourHits.some(h => h[1][0] !== colour[0] && !colour.includes(h[1][0]));
+  // anthracite / dark grey is not any grey
+  const darkGrey = /anthrazit|dunkelgrau|graphit|schiefergrau/.test(text);
 
   // material: from the explicit field first, then the text
   const matText = norm(`${q.material || ''} ${text}`);
   const materials = MATERIALS.filter(([k]) => matText.includes(k)).map(([, re]) => re);
+  // compounds: "Wollteppich", "Wolldecke" name wool too (not "Baumwoll...")
+  if (/(?<!baum)woll(?!e)/.test(matText) && !materials.some(re => re.source === 'wolle|wool')) materials.push(/wolle|wool/);
   // drop "holz" if a specific wood was found, "stein" if marble etc.
   const features = FEATURES.filter(f => words.includes(f));
+  // inflected shape words ("runder Teppich") and German names (Dreibein)
+  if (/\brunde?[nmrs]?\b/.test(text) && !features.includes('rund')) features.push('rund');
+  if (/dreibein/.test(text) && !features.includes('tripod')) features.push('tripod');
   // "Bogenlampe" / "Bogenleuchte": the arc is what makes it this lamp
   if (/bogen(lampe|leuchte|stehlampe)|\bbogen\b/.test(text) && !features.includes('bogen')) features.push('bogen');
   const wood = colour ? null : (WOOD_TONES.find(([re]) => re.test(matText)) || [])[1] || null;
@@ -410,8 +421,11 @@ function parseQuery(q) {
   if (pm) { priceMin = +pm[1]; priceMax = +pm[2]; }
   const sz = text.match(/(\d{2,3})\s*x\s*(\d{2,3})/);
   const size = sz ? [+sz[1], +sz[2]] : null;
+  // a single length ("Esstisch 220 cm", "Regal 180cm")
+  const ln = size ? null : text.match(/\b(\d{2,3})\s*cm\b/);
+  const len = ln ? +ln[1] : null;
 
-  return { text, size, rule, need: rule && rule[2], paths, colour, wood, massiv, materials, features, rest, keys, priceMin, priceMax,
+  return { text, size, len, multiColour, darkGrey, rule, need: rule && rule[2], paths, colour, wood, massiv, materials, features, rest, keys, priceMin, priceMax,
     // The first word naming a type wins ("Rattankorb mit Pflanze" is a basket);
     // otherwise anything that mentions plants, flooring etc. is skipped
     excluded: firstRule ? false : EXCLUDE_RE.test(text) };
@@ -479,7 +493,8 @@ function scoreItem(it, Q, pathW) {
   // "sure" needs the colour itself or a truly near shade (creme for weiß),
   // not just the same family (grau for schwarz, rot for terrakotta)
   // Höffner's "Bunt" tag is unreliable (grey rugs carry it): never sure on it
-  const colourOk = !Q.colour || (Q.colour[0] !== 'Bunt' && (it.colour === Q.colour[0] || (NEAR_COLOUR[Q.colour[0]] || []).includes(it.colour)));
+  const colourOk = !Q.colour || (Q.colour[0] !== 'Bunt' && !Q.multiColour
+    && (!Q.darkGrey || it.colour === 'Schwarz' || /anthrazit|dunkelgrau|graphit|schiefer/.test(all)) && (it.colour === Q.colour[0] || (NEAR_COLOUR[Q.colour[0]] || []).includes(it.colour)));
   // a fallback category (relax chair for "Sessel", ottoman for "Pouf") is never "the one"
   const typeOk = pathW >= 0.7;
   // every material asked for must be there ("Messing + Opalglas" = both)
@@ -498,8 +513,14 @@ function scoreItem(it, Q, pathW) {
   const novelty = NOVELTY.test(it.t) && !NOVELTY.test(Q.text);
   // a size in the title ("Bettgestell 120x200") must be the asked one ("160x200")
   const tSize = it.t.match(/(\d{2,3})\s*x\s*(\d{2,3})/);
-  const sizeOk = !Q.size || !tSize || (Math.abs(+tSize[1] - Q.size[0]) <= 10 && Math.abs(+tSize[2] - Q.size[1]) <= 15)
+  let sizeOk = !Q.size || !tSize || (Math.abs(+tSize[1] - Q.size[0]) <= 10 && Math.abs(+tSize[2] - Q.size[1]) <= 15)
     || (Math.abs(+tSize[2] - Q.size[0]) <= 10 && Math.abs(+tSize[1] - Q.size[1]) <= 15);
+  // a single length asked: some length in the title must be close to it
+  // ("Esstisch 220 cm" is not "ausziehbar 130–175 cm")
+  if (sizeOk && Q.len) {
+    const nums = (it.t.match(/\d{2,3}(?=\s*(?:[-–x×]\s*\d{2,3}\s*)*cm)|\d{2,3}(?=\s*[x×]\s*\d)/g) || []).map(Number);
+    if (nums.length && !nums.some(n => Math.abs(n - Q.len) <= Q.len * 0.12)) sizeOk = false;
+  }
   if (!sizeOk) s -= 20;
   // between equally good matches, the one people get soon (many pieces take 9-13 weeks)
   const weeks = (String(it.delivery).match(/(\d+)\s*woche/i) || [])[1];

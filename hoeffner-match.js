@@ -59,7 +59,10 @@ const TYPE_RULES = [
   [/handtuch|handtücher|badetuch|duschtuch/,        ['Heimtextilien > Badtextilien > Handtücher & Badetücher', 'Heimtextilien > Badtextilien > Handtuch-Sets']],
 
   // ── Rugs
-  [/schaffell|lammfell|\bfell\b|fellteppich/,       [T + 'Felle']],
+  // faux fur asked → faux fur; real sheepskin asked → never a Kunstfell
+  [/kunstfell|fellimitat|fake.?fell|webfell/,       [T + 'Felle'], /kunstfell|imitat|webfell|kunst/],
+  [/schaffell|lammfell|echtfell|echtes fell/,       [T + 'Felle'], /^(?!.*(kunst|imitat|webfell)).*(lammfell|schaffell|echt)/],
+  [/\bfell\b|fellteppich/,                          [T + 'Felle']],
   [/fußmatte|türmatte|schmutzfang|fussmatte/,       [T + 'Fußmatten & Stufenmatten']],
   [/bettumrandung/,                                 [T + 'Bettumrandungen']],
   [/läufer/,                                        [T + 'Läufer']],

@@ -8,6 +8,9 @@
 const express = require('express');
 const cors = require('cors');
 const hoeffner = require('./hoeffner-feed');
+const teppich = require('./teppich-feed');
+// Product feeds by shop key (the frontend's SHOPS keys)
+const FEEDS = { hoeffner, teppichde: teppich };
 
 const app = express();
 
@@ -176,6 +179,7 @@ app.get('/health', (req, res) => {
     global_day_used: globalDay.count,
     global_day_remaining: RL.GLOBAL_PER_DAY - globalDay.count,
     hoeffner_feed: hoeffner.status(),
+    teppich_feed: teppich.status(),
   });
 });
 
@@ -188,9 +192,10 @@ setInterval(() => {
   for (const [ip, rec] of productMinute) if (rec.resetAt <= now) productMinute.delete(ip);
 }, 5 * 60_000);
 
-// Body: { items: [{ text, material?, price?, alt? }, ...] }   (max 24 items)
+// Body: { shop?, items: [{ text, material?, price?, alt? }, ...] }   (max 24 items)
+//   shop = 'hoeffner' (default) or 'teppichde'
 //   text = the product's search phrase, alt = its display title (fallback)
-// Reply: { ready, results: [{ matched, sure, results: [product, ...] }, ...] }
+// Reply: { ready, results: [{ matched, sure, url?, results: [product, ...] }, ...] }
 app.post('/products', (req, res) => {
   const ip = getClientIp(req);
   const now = Date.now();
@@ -207,7 +212,8 @@ app.post('/products', (req, res) => {
   }));
   const limit = Math.min(Math.max(parseInt(req.body?.limit, 10) || 4, 1), 8);
 
-  const results = hoeffner.searchMany(items, limit);
+  const feed = FEEDS[req.body?.shop] || hoeffner;
+  const results = feed.searchMany(items, limit);
   // Feed not loaded yet (cold start): the frontend falls back to category links
   if (!results) return res.json({ ready: false, results: [] });
   res.set('Cache-Control', 'no-store');
@@ -285,6 +291,7 @@ app.post('/gemini', async (req, res) => {
 
 // ─── START ─────────────────────────────────────────────────────────
 hoeffner.load();
+teppich.load();
 
 app.listen(PORT, () => {
   console.log(`✅ Reima proxy listening on http://localhost:${PORT}`);

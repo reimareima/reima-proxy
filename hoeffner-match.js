@@ -52,7 +52,8 @@ const TYPE_RULES = [
   [/decke|plaid|überwurf|wohndecke/,                ['Heimtextilien > Dekokissen & Decken > Kuscheldecken & Wohndecken', 'Heimtextilien > Dekokissen & Decken > Tagesdecken & Bettüberwürfe@0.5']],
   [/gardinenstange|vorhangstange/,                  ['Heimtextilien > Gardinen & Rollos > Gardinenstangen & Zubehör']],
   [/rollo|jalousie|plissee/,                        ['Heimtextilien > Gardinen & Rollos > Rollos & Jalousien']],
-  [/vorhang|vorhänge|gardine|schlaufenschal|ösenschal|store\b/, ['Heimtextilien > Gardinen & Rollos > Gardinen & Vorhänge']],
+  [/flächenvorhang|schiebevorhang|panel/,          ['Heimtextilien > Gardinen & Rollos > Gardinen & Vorhänge'], /flächen|schiebe|panel/],
+  [/vorhang|vorhänge|gardine|schlaufenschal|ösenschal|store\b/, ['Heimtextilien > Gardinen & Rollos > Gardinen & Vorhänge'], /^(?!.*(panel|flächenvorhang|schiebevorhang)).*/],
   [/badematte|badvorleger|badteppich/,              ['Heimtextilien > Badtextilien > Badematten & Badvorleger']],
   [/bademantel/,                                    ['Heimtextilien > Badtextilien > Bademäntel']],
   [/handtuch|handtücher|badetuch|duschtuch/,        ['Heimtextilien > Badtextilien > Handtücher & Badetücher', 'Heimtextilien > Badtextilien > Handtuch-Sets']],
@@ -176,7 +177,7 @@ const TYPE_RULES = [
   [/vase/,                                          ['Accessoires > Vasen']],
   [/schale|schüssel/,                               ['Accessoires > Deko-Schalen']],
   [/tablett|etagere/,                               ['Küchenzubehör & Helfer > Küchenhelfer > Tabletts & Etageren', 'Accessoires > Deko-Schalen@0.5']],
-  [/kronleuchter|lüster|chandelier/,               ['Lampen & Leuchten > Hängeleuchten', 'Lampen & Leuchten > Deckenleuchten']],
+  [/kronleuchter|lüster|chandelier/,               ['Lampen & Leuchten > Hängeleuchten', 'Lampen & Leuchten > Deckenleuchten'], /kronleuchter|lüster|kristall|armleuchter|kerzen/],
   [/kerzenständer|kerzenhalter|kerzenleuchter/,     ['Accessoires > Kerzen & Kerzenständer > Kerzenständer', 'Accessoires > Kerzen & Kerzenständer@0.6']],
   [/teelicht/,                                      ['Accessoires > Kerzen & Kerzenständer > Teelichthalter']],
   [/laterne|windlicht/,                             ['Accessoires > Kerzen & Kerzenständer', 'Accessoires > Dekoartikel@0.6'], /laterne|windlicht/],
@@ -214,8 +215,12 @@ const COLOURS = [
   [/^(bunt|mehrfarbig|multicolor)/,                  ['Bunt']],
 ];
 
+const NEAR_COLOUR = { 'Weiß': ['Creme'], Creme: ['Weiß', 'Beige'], Beige: ['Creme'], Grau: ['Silber'], Silber: ['Grau'] };
+
 // Materials and finishes: query word -> words to look for in the product.
 const MATERIALS = [
+  ['mesh',      /mesh|netz/],
+  ['netz',      /mesh|netz/],
   ['samt',      /samt|velours|velvet/],
   ['cord',      /cord/],
   ['bouclé',    /bouclé|boucle|bouclè/],
@@ -266,7 +271,7 @@ const MATERIALS = [
 // Feature words with the different ways Höffner writes them
 const FEATURE_SYNONYMS = {
   rillen: /rillen|riffel|gerillt|lamellen|rippen/, gerillt: /rillen|riffel|gerillt|lamellen|rippen/,
-  plissee: /plissee|plissiert|falten/, opalglas: /opal|milchglas|satiniert/, kugel: /kugel|globe/, tripod: /tripod|dreibein/,
+  plissee: /plissee|plissiert|falten/, opalglas: /opal|milchglas|satiniert/, kugel: /kugel|globe/, tripod: /tripod|dreibein/, bogen: /bogen/,
   schwebend: /schwebend|hängend|wandmontage|wandhänge/, geflochten: /geflecht|geflochten/,
   rund: /rund|ø/, ausziehbar: /ausziehbar|ausziehfunktion|auszug/, dimmbar: /dimmbar|dimmfunktion/,
   schlaffunktion: /schlaffunktion|bettfunktion/, bettkasten: /bettkasten|stauraum/,
@@ -285,7 +290,7 @@ const FEATURES = ['rund', 'oval', 'eckig', 'quadratisch', 'rechteckig', 'auszieh
   'rollen', 'schubladen', 'türen', 'glastüren', 'offen', 'klappbar', 'kissen', 'fransen', 'muster', 'gestreift',
   'karo', 'hochflor', 'kurzflor', 'waschbar', 'blickdicht', 'transparent', 'verdunkelung', 'led', 'kabellos',
   'akku', 'groß', 'klein', 'schmal', 'breit', 'hoch', 'niedrig', 'xxl', 'mini', 'organisch', 'geschwungen',
-  'plissee', 'opalglas', 'tripod'];
+  'plissee', 'opalglas', 'tripod', 'bogen'];
 // Words too vague to decide whether a product really is "the one"
 const GENERIC = new Set(['groß', 'große', 'großer', 'klein', 'kleine', 'modern', 'moderne', 'schmal', 'breit', 'hoch',
   'niedrig', 'xxl', 'mini', 'klassisch', 'minimalistisch', 'skandinavisch', 'organisch', 'japandi', 'boho', 'retro',
@@ -367,6 +372,8 @@ function parseQuery(q) {
   const materials = MATERIALS.filter(([k]) => matText.includes(k)).map(([, re]) => re);
   // drop "holz" if a specific wood was found, "stein" if marble etc.
   const features = FEATURES.filter(f => words.includes(f));
+  // "Bogenlampe" / "Bogenleuchte": the arc is what makes it this lamp
+  if (/bogen(lampe|leuchte|stehlampe)|\bbogen\b/.test(text) && !features.includes('bogen')) features.push('bogen');
   const wood = colour ? null : (WOOD_TONES.find(([re]) => re.test(matText)) || [])[1] || null;
   const massiv = /massiv/.test(matText);
 
@@ -384,8 +391,10 @@ function parseQuery(q) {
   let priceMin = 0, priceMax = 0;
   const pm = String(q.price || '').replace(/\./g, '').match(/(\d+)\D+(\d+)/);
   if (pm) { priceMin = +pm[1]; priceMax = +pm[2]; }
+  const sz = text.match(/(\d{2,3})\s*x\s*(\d{2,3})/);
+  const size = sz ? [+sz[1], +sz[2]] : null;
 
-  return { text, rule, need: rule && rule[2], paths, colour, wood, massiv, materials, features, rest, keys, priceMin, priceMax,
+  return { text, size, rule, need: rule && rule[2], paths, colour, wood, massiv, materials, features, rest, keys, priceMin, priceMax,
     // The first word naming a type wins ("Rattankorb mit Pflanze" is a basket);
     // otherwise anything that mentions plants, flooring etc. is skipped
     excluded: firstRule ? false : EXCLUDE_RE.test(text) };
@@ -434,7 +443,11 @@ function scoreItem(it, Q, pathW) {
     else if (it.price > Q.priceMax * 3) s -= 18;
     else s -= 8;
   }
-  const colourOk = !Q.colour || it.colour === Q.colour[0] || Q.colour.includes(it.colour);
+  // "sure" needs the colour itself or a truly near shade (creme for weiß),
+  // not just the same family (grau for schwarz, rot for terrakotta)
+  const colourOk = !Q.colour || it.colour === Q.colour[0] || (NEAR_COLOUR[Q.colour[0]] || []).includes(it.colour);
+  // a fallback category (relax chair for "Sessel", ottoman for "Pouf") is never "the one"
+  const typeOk = pathW >= 0.7;
   // every material asked for must be there ("Messing + Opalglas" = both)
   const materialOk = matHits === Q.materials.length;
   const keyHits = Q.keys.filter(w => {
@@ -447,11 +460,17 @@ function scoreItem(it, Q, pathW) {
   // a corner desk/sofa/bench only when a corner piece was asked for
   const cornerOk = !/^eck|\beck/.test(it.t) || /\beck|^eck|l-form|u-form/.test(Q.text);
   // novelty shapes (3D shell vase, strawberry vase ...) only when asked
-  const novelty = /\b3d\b|muschel|erdbeer|ananas|gesicht|\bkopf|\beule\b|hund\b|katze/.test(it.t) && !/\b3d\b|muschel|erdbeer|ananas|gesicht|kopf|eule|hund|katze/.test(Q.text);
+  const NOVELTY = /\b3d\b|muschel|erdbeer|ananas|gesicht|\bkopf|\beule|\bhund|katze|hummer|fisch|vogel|hase\b|elefant|flamingo|\bhand\b|lippen|buddha|totenkopf|herz\b/;
+  const novelty = NOVELTY.test(it.t) && !NOVELTY.test(Q.text);
+  // a size in the title ("Bettgestell 120x200") must be the asked one ("160x200")
+  const tSize = it.t.match(/(\d{2,3})\s*x\s*(\d{2,3})/);
+  const sizeOk = !Q.size || !tSize || (Math.abs(+tSize[1] - Q.size[0]) <= 10 && Math.abs(+tSize[2] - Q.size[1]) <= 15)
+    || (Math.abs(+tSize[2] - Q.size[0]) <= 10 && Math.abs(+tSize[1] - Q.size[1]) <= 15);
+  if (!sizeOk) s -= 20;
   if (!priceOk) s -= 15;
   if (!cornerOk) s -= 20;
   if (novelty) s -= 25;
-  return { s, why, sure: colourOk && materialOk && keysOk && priceOk && cornerOk && !novelty };
+  return { s, why, sure: colourOk && typeOk && materialOk && keysOk && priceOk && cornerOk && !novelty && sizeOk };
 }
 
 // query: { text, material?, price? }  ->  { type, results: [...] }

@@ -159,6 +159,9 @@ const EXCLUDE_Q = /wandteppich|wandbehang|makramee|teppichboden|auslegware|kunst
 // Real sheepskin / cowhide: teppich.de only has faux fur
 const REAL_FUR_Q = /schaffell|lammfell|kuhfell|echtfell|naturfell|rinderfell/;
 
+// Feed colours that don't match the product photo (checked by eye)
+const COLOUR_FIX = { 'handwebteppich orkide beige': 'Braun' };
+
 function norm(s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
 const split = s => String(s || '').split(/\s*,\s*/).map(x => x.trim()).filter(Boolean);
 
@@ -209,8 +212,8 @@ function buildIndex(rows) {
       m = {
         name, title: prettyName(name), t: lname,
         series: lname.split(' ').slice(-2, -1)[0] || '',
-        colour: r.colour || '',
-        siteColour: SITE_COLOUR[r.colour] || null,
+        colour: COLOUR_FIX[lname] || r.colour || '',
+        siteColour: SITE_COLOUR[COLOUR_FIX[lname] || r.colour] || null,
         materials: mats,
         styles: new Set(split(r.custom_2)),
         features: new Set(split(r.custom_3)),

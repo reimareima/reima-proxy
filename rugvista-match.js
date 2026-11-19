@@ -325,7 +325,7 @@ function scoreModel(m, Q) {
   }
   for (const pt of Q.patterns) {
     if (m.pattern === pt) { s += 18; why.push(pt); }
-    else if (pt === 'Geometrisch' && ((/gemustert|muster/.test(Q.text) && m.pattern && m.pattern !== 'Einfarbig') || (m.kelim && m.pattern !== 'Einfarbig' && m.pattern !== 'Floral'))) { s += 10; why.push('muster'); }
+    else if (pt === 'Geometrisch' && /gemustert|muster/.test(Q.text) && m.pattern && m.pattern !== 'Einfarbig') { s += 10; why.push('muster'); }
     else { s -= 12; fail.push('pattern'); }
   }
   if (!Q.patterns.length && !Q.styles.length && !Q.berber && !Q.kelim) {

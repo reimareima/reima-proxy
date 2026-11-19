@@ -9,8 +9,9 @@ const express = require('express');
 const cors = require('cors');
 const hoeffner = require('./hoeffner-feed');
 const teppich = require('./teppich-feed');
+const rugvista = require('./rugvista-feed');
 // Product feeds by shop key (the frontend's SHOPS keys)
-const FEEDS = { hoeffner, teppichde: teppich };
+const FEEDS = { hoeffner, teppichde: teppich, rugvista };
 
 const app = express();
 
@@ -180,6 +181,7 @@ app.get('/health', (req, res) => {
     global_day_remaining: RL.GLOBAL_PER_DAY - globalDay.count,
     hoeffner_feed: hoeffner.status(),
     teppich_feed: teppich.status(),
+    rugvista_feed: rugvista.status(),
   });
 });
 
@@ -193,7 +195,7 @@ setInterval(() => {
 }, 5 * 60_000);
 
 // Body: { shop?, items: [{ text, material?, price?, alt? }, ...] }   (max 24 items)
-//   shop = 'hoeffner' (default) or 'teppichde'
+//   shop = 'hoeffner' (default), 'teppichde' or 'rugvista'
 //   text = the product's search phrase, alt = its display title (fallback)
 // Reply: { ready, results: [{ matched, sure, url?, results: [product, ...] }, ...] }
 app.post('/products', (req, res) => {
@@ -292,6 +294,7 @@ app.post('/gemini', async (req, res) => {
 // ─── START ─────────────────────────────────────────────────────────
 hoeffner.load();
 teppich.load();
+rugvista.load();
 
 app.listen(PORT, () => {
   console.log(`✅ Reima proxy listening on http://localhost:${PORT}`);

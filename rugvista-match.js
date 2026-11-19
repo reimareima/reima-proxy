@@ -333,6 +333,8 @@ function scoreModel(m, Q) {
     else { s -= 10; fail.push('pattern'); }
   }
   if (Q.berber) { if (m.berber) { s += 30; why.push('berber'); } else fail.push('berber'); }
+  // "Beni Ourain" is a specific look (cream, thick, fine dark lines)
+  if (/beni.?ourain/.test(Q.text) && !/beni ourain/i.test(m.type)) fail.push('beni');
   if (Q.kelim) { if (m.kelim) { s += 25; why.push('kelim'); } else { s -= 5; fail.push('kelim'); } }
 
   for (const f of Q.features) {

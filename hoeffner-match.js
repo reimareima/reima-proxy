@@ -520,6 +520,8 @@ function scoreItem(it, Q, pathW) {
   const priceOk = !Q.priceMax || (it.price <= Q.priceMax * 2 && it.price >= Q.priceMin * 0.3);
   // a corner desk/sofa/bench only when a corner piece was asked for
   const cornerOk = !/^eck|\beck/.test(it.t) || /\beck|^eck|l-form|u-form/.test(Q.text);
+  // "rechteckig" asked: a round piece isn't it (and the other way round)
+  const shapeOk = !(/rechteckig|\beckig/.test(Q.text) && /\brund|ø/.test(it.t));
   // novelty shapes (3D shell vase, strawberry vase ...) only when asked
   const NOVELTY = /\b3d\b|muschel|erdbeer|ananas|gesicht|\bkopf|\beule|\bhund|katze|hummer|fisch|vogel|hase\b|elefant|flamingo|\bhand\b|lippen|buddha|totenkopf|herz\b/;
   const novelty = (NOVELTY.test(it.t) && !NOVELTY.test(Q.text)) || (Q.kids && !/kinder|kids|jugend|baby/.test(all));
@@ -541,7 +543,7 @@ function scoreItem(it, Q, pathW) {
   if (!priceOk) s -= 15;
   if (!cornerOk) s -= 20;
   if (novelty) s -= 25;
-  return { s, why, sure: colourOk && typeOk && materialOk && keysOk && priceOk && cornerOk && !novelty && sizeOk };
+  return { s, why, sure: colourOk && typeOk && materialOk && keysOk && priceOk && cornerOk && shapeOk && !novelty && sizeOk };
 }
 
 // query: { text, material?, price? }  ->  { type, results: [...] }

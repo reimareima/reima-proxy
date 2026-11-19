@@ -187,7 +187,8 @@ function buildIndex(rows) {
       }
       const lt = type.toLowerCase();
       const styles = new Set();
-      if (/oriental|medallion|mamluk|kilim oriental|vintage > (medallion|floral)/.test(lt) || pattern === 'Orientalisch') styles.add('Orientalisch');
+      // knotted Oriental rugs; a kelim is a flat weave, not an "Orientteppich"
+      if (!/kilim/.test(lt) && (/oriental|medallion|mamluk|vintage > (medallion|floral)/.test(lt) || pattern === 'Orientalisch')) styles.add('Orientalisch');
       if (/berber|kilim|gabbeh|patchwork/.test(lt)) styles.add('Boho');
       if (/vintage|patina/.test(lt)) styles.add('Vintage');
       if (/beni ourain|berber neutral/.test(lt)) styles.add('Skandi');
@@ -324,7 +325,7 @@ function scoreModel(m, Q) {
   }
   for (const pt of Q.patterns) {
     if (m.pattern === pt) { s += 18; why.push(pt); }
-    else if (pt === 'Geometrisch' && /gemustert|muster/.test(Q.text) && m.pattern && m.pattern !== 'Einfarbig') { s += 10; why.push('muster'); }
+    else if (pt === 'Geometrisch' && ((/gemustert|muster/.test(Q.text) && m.pattern && m.pattern !== 'Einfarbig') || (m.kelim && m.pattern !== 'Einfarbig' && m.pattern !== 'Floral'))) { s += 10; why.push('muster'); }
     else { s -= 12; fail.push('pattern'); }
   }
   if (!Q.patterns.length && !Q.styles.length && !Q.berber && !Q.kelim) {

@@ -200,7 +200,7 @@ function search(index, q, limit = 4) {
     return b;
   };
   const ranked = (r.results || []).map(p => ({ p, s: (p.score || 0) + bonus(p) })).sort((a, b) => (b.p.sure - a.p.sure) || (b.s - a.s)).slice(0, limit).map(x => x.p);
-  for (const p of ranked) p.title = String(p.title).split(/,\s/)[0].slice(0, 90);
+  for (const p of ranked) p.title = String(p.title).split(/,\s| [–-] /)[0].slice(0, 90);
   return { ...r, sure: !!(ranked[0] && ranked[0].sure), results: ranked };
 }
 

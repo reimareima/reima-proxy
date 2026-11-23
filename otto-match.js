@@ -302,7 +302,17 @@ function search(index, q, limit = 4) {
   };
   for (const p of r.results || []) p.sure = !!p.sure && restOk(p.title);
   const ranked = (r.results || []).map(p => ({ p, s: (p.score || 0) + bonus(p) })).sort((a, b) => (b.p.sure - a.p.sure) || (b.s - a.s)).slice(0, limit).map(x => x.p);
-  for (const p of ranked) p.title = String(p.title).split(/,\s| [–-] /)[0].slice(0, 90);
+  for (const p of ranked) {
+    let t = String(p.title).split(/,\s/)[0];
+    const dash = t.split(/ [–-] /)[0];
+    if (dash.length >= 15) t = dash;   // "exxpo - sofa fashion 3-Sitzer" keeps the part after the brand
+    p.title = t.slice(0, 90);
+  }
+  // OTTO's own picture, sharp and without Awin's letterbox; Awin's copy stays as fallback
+  for (const p of ranked) {
+    const id = (decodeURIComponent((String(p.image2 || p.image).match(/[?&]url=([^&]+)/) || [])[1] || '').match(/i\.otto\.de\/i\/otto\/([\w-]+)/) || [])[1];
+    if (id) p.image = `https://i.otto.de/i/otto/${id}?w=600&h=600`;
+  }
   return { ...r, sure: !!(ranked[0] && ranked[0].sure), results: ranked };
 }
 

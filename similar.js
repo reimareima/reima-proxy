@@ -28,9 +28,9 @@ async function model(apiKey) {
   return MODEL;
 }
 const MIN_SCORE = 8;            // 8 = a shopper would accept it as that piece
-const PER_SHOP = { otto: 14 };  // candidates per shop, others DEFAULT_PER_SHOP
-const DEFAULT_PER_SHOP = 4;
-const MAX_CANDIDATES = 20;
+const PER_SHOP = { otto: 10 };  // candidates per shop, others DEFAULT_PER_SHOP
+const DEFAULT_PER_SHOP = 3;
+const MAX_CANDIDATES = 14;
 const MAX_ITEMS = 8;
 const DAY_CAP = 4000;           // item checks per day (cost guard, ~0.1 ct each)
 
@@ -40,7 +40,7 @@ const day = { count: 0, resetAt: 0 };
 // A smaller version of the product photo: fewer tokens, faster download
 function smallImage(u) {
   u = String(u || '');
-  if (/i\.otto\.de\//.test(u)) return u.replace(/\?.*$/, '') + '?w=220&h=220';
+  if (/i\.otto\.de\//.test(u)) return u.replace(/\?.*$/, '') + '?w=200&h=200';
   if (/media\.hoeffner\.de\/medias\/(medium|zoom)\//.test(u)) return u.replace(/\/medias\/(medium|zoom)\//, '/medias/small/');
   if (/[?&]width=\d+/.test(u)) return u.replace(/([?&]width=)\d+/, '$1300');
   return u.replace('w=400&h=400', 'w=300&h=300');

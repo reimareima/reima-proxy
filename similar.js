@@ -13,7 +13,20 @@
 
 const crypto = require('crypto');
 
-const MODEL = 'gemini-2.5-flash';
+// The newest plain "flash" model Google offers (models retire), unless set
+let MODEL = (process.env.SIMILAR_MODEL || '').trim();
+async function model(apiKey) {
+  if (MODEL) return MODEL;
+  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=${encodeURIComponent(apiKey)}`);
+  const names = ((await r.json()).models || [])
+    .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+    .map(m => m.name.replace(/^models\//, ''))
+    .filter(n => /^gemini-\d+(\.\d+)?-flash(-latest)?$/.test(n));
+  names.sort((a, b) => parseFloat(b.split('-')[1]) - parseFloat(a.split('-')[1]));
+  MODEL = names[0] || 'gemini-flash-latest';
+  console.log('[similar] model:', MODEL, 'of', names.join(', '));
+  return MODEL;
+}
 const MIN_SCORE = 8;            // 8 = a shopper would accept it as that piece
 const PER_SHOP = { otto: 5 };   // candidates per shop, others DEFAULT_PER_SHOP
 const DEFAULT_PER_SHOP = 3;
@@ -80,7 +93,7 @@ async function checkItem(look, item, FEEDS, apiKey) {
   const parts = [{ text: prompt(item, usable.length) }, { inline_data: look }];
   usable.forEach((x, i) => { parts.push({ text: `C${i + 1}:` }, { inline_data: x.img }); });
 
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${await model(apiKey)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -135,7 +148,7 @@ async function similar(body, FEEDS, apiKey) {
       return { checked: false, error: String(err.message).slice(0, 120), matches: [] };
     }
   }));
-  return { results, used_today: day.count };
+  return { results, used_today: day.count, model: MODEL };
 }
 
 module.exports = { similar };

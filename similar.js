@@ -88,7 +88,7 @@ async function checkItem(look, item, FEEDS, apiKey) {
       generationConfig: { temperature: 0, responseMimeType: 'application/json', thinkingConfig: { thinkingBudget: 0 } },
     }),
   });
-  if (!res.ok) throw new Error(`Gemini ${res.status}`);
+  if (!res.ok) throw new Error(`Gemini ${res.status} ${(await res.text()).slice(0, 80)}`);
   const data = await res.json();
   const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text || '').join('') || '';
   let out;
@@ -132,7 +132,7 @@ async function similar(body, FEEDS, apiKey) {
       return r;
     } catch (err) {
       console.error('[similar]', err.message);
-      return { checked: false, matches: [] };
+      return { checked: false, error: String(err.message).slice(0, 120), matches: [] };
     }
   }));
   return { results, used_today: day.count };

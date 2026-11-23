@@ -28,9 +28,9 @@ async function model(apiKey) {
   return MODEL;
 }
 const MIN_SCORE = 8;            // 8 = a shopper would accept it as that piece
-const PER_SHOP = { otto: 5 };   // candidates per shop, others DEFAULT_PER_SHOP
+const PER_SHOP = { otto: 9 };   // candidates per shop, others DEFAULT_PER_SHOP
 const DEFAULT_PER_SHOP = 3;
-const MAX_CANDIDATES = 8;
+const MAX_CANDIDATES = 12;
 const MAX_ITEMS = 8;
 const DAY_CAP = 4000;           // item checks per day (cost guard, ~0.1 ct each)
 
@@ -80,7 +80,7 @@ async function checkItem(look, item, FEEDS, apiKey) {
   for (const shop of item.shops) {
     const feed = FEEDS[shop];
     if (!feed) continue;
-    const r = (feed.searchMany([{ text: item.text, alt: item.title, material: item.material, price: item.price }], 8) || [])[0];
+    const r = (feed.searchMany([{ text: item.text, alt: item.title, material: item.material, price: item.price }], 12) || [])[0];
     if (!r || !r.results) continue;
     for (const p of r.results.slice(0, PER_SHOP[shop] || DEFAULT_PER_SHOP)) cands.push({ ...p, shop });
   }

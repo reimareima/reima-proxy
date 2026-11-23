@@ -96,7 +96,9 @@ const OTTO_RULES = [
   [/scheibengardine|bistrogardine|caféhaus|cafehaus/, [W + 'Gardinen > Scheibengardine']],
   [/schiebegardine|flächenvorhang/,                 [W + 'Gardinen > Schiebegardine']],
   [/türvorhang/,                                    [W + 'Gardinen > Türvorhang']],
-  [/husse/,                                         [W + 'Hussen > Stuhlhusse', 'Haushalt > Sesselschoner > Sofaschoner@0.7']],
+  [/sofahusse|sofabezug|sofaüberwurf|couchbezug|sofaschoner|(sofa|couch).*(husse|bezug)|(husse|bezug).*(sofa|couch|sitzer)/, [W + 'Hussen > Sofahusse', W + 'Hussen > Sofabezug', 'Haushalt > Sesselschoner > Sofaschoner@0.7']],
+  [/sesselhusse|sesselschoner/,                     [W + 'Hussen > Sesselhusse', 'Haushalt > Sesselschoner > Sesselschoner']],
+  [/husse|stuhlbezug/,                              [W + 'Hussen > Stuhlhusse', W + 'Hussen > Stuhlbezug']],
   [/verdunkelung/,                                  [W + 'Gardinen > Verdunkelungsvorhang']],
   [/vorhang|vorhänge|gardine|schlaufenschal|ösenschal/, all(W + 'Gardinen > ', ['Vorhang', 'Gardine', 'Verdunkelungsvorhang@0.6'])],
 
@@ -217,7 +219,7 @@ const OTTO_RULES = [
 
 // Things OTTO's Wohnen feed doesn't have as the piece itself (floors,
 // wallpaper, cables, real plants): no match, the search link is used.
-const OTTO_EXCLUDE = /\bkamin(?!holz)|kaminofen|vinyl|laminat|parkett|fliese|tapete|wandfarbe|teppichboden|bodenbelag|sockelleiste|glühbirne|leuchtmittel|smart plug|steckdose|kabel|monstera|ficus|(oliven|zitronen|geld|gummi|feigen|lorbeer|bananen|zier|zimmer)baum|palme|kaktus|eukalyptus|bonsai/;
+const OTTO_EXCLUDE = /^(?!.*(kunst|künstlich)).*(\bkamin(?!holz)|kaminofen|vinyl|laminat|parkett|fliese|tapete|wandfarbe|teppichboden|bodenbelag|sockelleiste|glühbirne|leuchtmittel|smart plug|steckdose|kabel|monstera|ficus|(oliven|zitronen|geld|gummi|feigen|lorbeer|bananen|zier|zimmer)baum|palme|kaktus|eukalyptus|bonsai)/;
 
 // Every category any rule can return; rows outside them aren't kept
 const KEEP = new Set(OTTO_RULES.flatMap(r => r[1].map(p => p.split('@')[0].replace(/=$/, ''))));

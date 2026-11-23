@@ -28,9 +28,9 @@ async function model(apiKey) {
   return MODEL;
 }
 const MIN_SCORE = 8;            // 8 = a shopper would accept it as that piece
-const PER_SHOP = { otto: 9 };   // candidates per shop, others DEFAULT_PER_SHOP
-const DEFAULT_PER_SHOP = 3;
-const MAX_CANDIDATES = 12;
+const PER_SHOP = { otto: 14 };  // candidates per shop, others DEFAULT_PER_SHOP
+const DEFAULT_PER_SHOP = 4;
+const MAX_CANDIDATES = 20;
 const MAX_ITEMS = 8;
 const DAY_CAP = 4000;           // item checks per day (cost guard, ~0.1 ct each)
 
@@ -40,7 +40,7 @@ const day = { count: 0, resetAt: 0 };
 // A smaller version of the product photo: fewer tokens, faster download
 function smallImage(u) {
   u = String(u || '');
-  if (/i\.otto\.de\//.test(u)) return u.replace(/\?.*$/, '') + '?w=300&h=300';
+  if (/i\.otto\.de\//.test(u)) return u.replace(/\?.*$/, '') + '?w=220&h=220';
   if (/media\.hoeffner\.de\/medias\/(medium|zoom)\//.test(u)) return u.replace(/\/medias\/(medium|zoom)\//, '/medias/small/');
   if (/[?&]width=\d+/.test(u)) return u.replace(/([?&]width=)\d+/, '$1300');
   return u.replace('w=400&h=400', 'w=300&h=300');
@@ -76,13 +76,24 @@ Answer only with JSON: {"found": true, "scores": [{"id": "C1", "score": 0}]}`;
 
 async function checkItem(look, item, FEEDS, apiKey) {
   // Candidates from the feeds (words only, may or may not look right)
+  // Far outside the expected price it isn't what the design shows
+  const pm = item.price.replace(/\./g, '').match(/(\d+)\D+(\d+)/);
+  const lo = pm ? +pm[1] * 0.3 : 0, hi = pm ? +pm[2] * 2.2 : Infinity;
   const cands = [];
   for (const shop of item.shops) {
     const feed = FEEDS[shop];
     if (!feed) continue;
-    const r = (feed.searchMany([{ text: item.text, alt: item.title, material: item.material, price: item.price }], 12) || [])[0];
+    const r = (feed.searchMany([{ text: item.text, alt: item.title, material: item.material, price: item.price }], 24) || [])[0];
     if (!r || !r.results) continue;
-    for (const p of r.results.slice(0, PER_SHOP[shop] || DEFAULT_PER_SHOP)) cands.push({ ...p, shop });
+    // one per model: "Handloom Teppich, Naturweiß" and ", Off white" are the same rug
+    const seen = new Set();
+    const list = r.results.filter(p => {
+      const base = String(p.title).split(/,\s/)[0].toLowerCase();
+      if (seen.has(base) || (p.price && (p.price < lo || p.price > hi))) return false;
+      seen.add(base);
+      return true;
+    });
+    for (const p of list.slice(0, PER_SHOP[shop] || DEFAULT_PER_SHOP)) cands.push({ ...p, shop });
   }
   if (!cands.length) return { checked: true, found: null, matches: [] };
   const picked = cands.slice(0, MAX_CANDIDATES);

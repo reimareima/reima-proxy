@@ -12,6 +12,7 @@ const teppich = require('./teppich-feed');
 const rugvista = require('./rugvista-feed');
 const casamoro = require('./casamoro-feed');
 const otto = require('./otto-feed');
+const { similar } = require('./similar');
 // Product feeds by shop key (the frontend's SHOPS keys)
 const FEEDS = { hoeffner, teppichde: teppich, rugvista, casamoro, otto };
 
@@ -253,6 +254,22 @@ app.post('/shop/prices', (req, res) => {
   }
   res.set('Cache-Control', 'no-store');
   res.json({ ready, results });
+});
+
+// ─── SIMILAR PRODUCTS (picture check, see similar.js) ────────────
+// Paid (one small Gemini call per product), so it counts like /gemini.
+app.post('/similar', async (req, res) => {
+  if (!checkRateLimit(req, res)) return;
+  if (!GEMINI_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY missing' });
+  try {
+    const out = await similar(req.body, FEEDS, GEMINI_KEY);
+    if (out.error) return res.status(400).json(out);
+    res.set('Cache-Control', 'no-store');
+    res.json(out);
+  } catch (err) {
+    console.error('similar error:', err);
+    res.status(502).json({ error: 'similar failed' });
+  }
 });
 
 // Anthropic Messages API proxy

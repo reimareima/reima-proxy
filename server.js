@@ -11,8 +11,9 @@ const hoeffner = require('./hoeffner-feed');
 const teppich = require('./teppich-feed');
 const rugvista = require('./rugvista-feed');
 const casamoro = require('./casamoro-feed');
+const otto = require('./otto-feed');
 // Product feeds by shop key (the frontend's SHOPS keys)
-const FEEDS = { hoeffner, teppichde: teppich, rugvista, casamoro };
+const FEEDS = { hoeffner, teppichde: teppich, rugvista, casamoro, otto };
 
 const app = express();
 
@@ -184,6 +185,7 @@ app.get('/health', (req, res) => {
     teppich_feed: teppich.status(),
     rugvista_feed: rugvista.status(),
     casamoro_feed: casamoro.status(),
+    otto_feed: otto.status(),
   });
 });
 
@@ -327,6 +329,8 @@ hoeffner.load();
 teppich.load();
 rugvista.load();
 casamoro.load();
+// OTTO last: the biggest download, the others are ready before it
+setTimeout(() => otto.load(), 30_000);
 
 app.listen(PORT, () => {
   console.log(`✅ Reima proxy listening on http://localhost:${PORT}`);

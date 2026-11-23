@@ -360,12 +360,12 @@ function buildIndex(rows) {
 }
 
 // ── Query parsing ────────────────────────────────────────────────────
-function parseQuery(q) {
+function parseQuery(q, RULES = TYPE_RULES) {
   const text = norm(q.text);
   const words = text.split(/[\s,/()+&-]+/).filter(Boolean);
 
   // Product type: first word decides if it names a type, otherwise the whole text
-  const findRule = s => TYPE_RULES.find(([re]) => re.test(s));
+  const findRule = s => RULES.find(([re]) => re.test(s));
   const firstRule = words[0] && !/^(deko|set|design|moderne?[rs]?|große?[rs]?|kleine?[rs]?|runde?[rs]?)$/.test(words[0]) && !EXCLUDE_RE.test(words[0]) ? findRule(words[0]) : null;
   let rule = firstRule || findRule(text);
   // A more specific rule of the same family wins ("Sofa 3-Sitzer" -> 3-Sitzer,
@@ -374,7 +374,7 @@ function parseQuery(q) {
   if (rule) {
     const fam = p => p.split('@')[0].replace(/=$/, '').split(' > ').slice(0, 2).join(' > ');
     const ruleFams = new Set(rule[1].map(fam));
-    const better = TYPE_RULES.find(r => r !== rule && TYPE_RULES.indexOf(r) < TYPE_RULES.indexOf(rule)
+    const better = RULES.find(r => r !== rule && RULES.indexOf(r) < RULES.indexOf(rule)
       && r[0].test(text) && r[1].every(p => ruleFams.has(fam(p))) && r[1].length <= rule[1].length);
     if (better) rule = better;
   }
@@ -548,9 +548,11 @@ function scoreItem(it, Q, pathW) {
 
 // query: { text, material?, price? }  ->  { type, results: [...] }
 function search(index, query, limit = 4) {
-  let Q = parseQuery(query);
+  // index.rules: another shop's category rules (OTTO), same scoring
+  const RULES = index.rules || TYPE_RULES;
+  let Q = parseQuery(query, RULES);
   // No product type in the search phrase? Try the card's display title.
-  if (!Q.paths.length && !Q.excluded && query.alt) Q = parseQuery({ ...query, text: `${query.alt} ${query.text}` });
+  if (!Q.paths.length && !Q.excluded && query.alt) Q = parseQuery({ ...query, text: `${query.alt} ${query.text}` }, RULES);
   if (Q.excluded || !Q.paths.length) return { matched: false, reason: Q.excluded ? 'excluded' : 'no-type', results: [] };
   if (Q.paths.some(p => p.path.startsWith('Betten >')) && !/polster|boxspring/.test(Q.text)
       && Q.materials.some(re => re.test('eiche buche kiefer nussbaum holz massiv akazie'))) {

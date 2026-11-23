@@ -8,16 +8,39 @@
 //  "Möbel > Tische > Couchtisch". The third level is the product type.
 // ─────────────────────────────────────────────────────────────────────
 
-const { buildIndex: hBuild, search: hSearch } = require('./hoeffner-match');
+const { buildIndex: hBuild, search: hSearch, parseQuery } = require('./hoeffner-match');
 
 const L = 'Leuchten > Leuchten > ';
 const M = 'Möbel > ';
 const W = 'Wohntextilien > ';
 const D = 'Deko, Accessoires > ';
 const RUG = W + 'Teppiche > ';
+const G = 'Garten > Pflanzgefäße > ';
+const LK = 'Leuchten > Lichterketten > ';
+const B = D + 'Bilder > ';
 const all = (base, names) => names.map(n => base + n);
 
 const OTTO_RULES = [
+  // ── Specific first: these contain words of more general types below
+  [/tischläufer/,                                   [W + 'Tischdecken > Tischläufer']],
+  [/tischdecke|mitteldecke/,                        [W + 'Tischdecken > Tischdecke', W + 'Tischdecken > Mitteldecke@0.6']],
+  [/au(ß|ss)en.?wand|fassadenleuchte/,              all(L, ['Außen-Wandleuchte', 'LED Außen-Wandleuchte'])],
+  [/led.?kerze|flammenlose|elektrische kerze/,      [L + 'LED-Kerze', D + 'Kerzen > LED-Kerze']],
+  [/led.?(streifen|stripe?s?|band)|lichtleiste|lichtband/, [LK + 'LED-Streifen', LK + 'LED Stripe', L + 'LED Lichtleiste']],
+  [/lichterkette|lichtervorhang|lichternetz|lichtergirlande|fairy/, [LK + 'LED-Lichterkette', LK + 'Lichterkette', LK + 'LED-Lichtervorhang@0.7', LK + 'Lichtervorhang@0.7', LK + 'LED-Girlande@0.6']],
+  [/kunst(pflanze|baum|blume|gras|zweig|orchidee)|künstliche?r?s? |trockenblume|trockengras|pampas/, all(D + 'Kunstpflanzen > ', ['Kunstpflanze', 'Künstliche Zimmerpflanze', 'Kunstbaum', 'Kunstblume@0.8', 'Kunstblumenstrauß@0.7', 'Trockenblume', 'Kunstgras@0.7', 'Kunstzweig@0.6'])],
+  [/übertopf|blumentopf|pflanzkübel|pflanztopf|pflanzgefäß|pflanzschale|blumenkasten|balkonkasten/, [G + 'Übertopf', G + 'Blumentopf', G + 'Pflanzkübel', G + 'Pflanzschale@0.6', G + 'Blumenkasten@0.5', G + 'Balkonkasten@0.5']],
+  [/blumenständer|pflanzenständer|pflanzenregal|pflanzentreppe|blumenhocker/, [G + 'Blumenständer', G + 'Pflanzentreppe@0.7', 'Haushalt > Hocker > Blumenhocker']],
+  [/badematte|badvorleger|badteppich/,              [W + 'Badematten > Badematte']],
+  [/wandteppich|wandbehang/,                        [RUG + 'Wandteppich']],
+  [/küchenläufer/,                                  [RUG + 'Küchenläufer', RUG + 'Läufer@0.6']],
+  [/badspiegel|spiegelschrank/,                     ['Haushalt > Spiegel > Badspiegel', M + 'Schränke > Spiegelschrank', M + 'Schränke > Badezimmerspiegelschrank']],
+  [/waschbeckenunterschrank|waschtisch|badkommode|badschrank|badmöbel/, [M + 'Schränke > Waschbeckenunterschrank', M + 'Waschtische > Waschtisch', M + 'Sideboards > Badkommode', M + 'Kastenmöbel-Sets > Badmöbel-Set@0.6', M + 'Schränke > Hochschrank@0.5']],
+  [/badregal|duschregal/,                           [M + 'Regale > Badregal']],
+  [/handtuchhalter|handtuchständer|handtuchleiter/, [M + 'Handtuchhalter > Handtuchhalter', M + 'Handtuchhalter > Handtuchständer']],
+  [/handtuch|handtücher|badetuch/,                  all(W + 'Handtücher > ', ['Handtuch', 'Handtücher', 'Handtuch Set', 'Badetuch@0.7'])],
+  [/duschvorhang/,                                  [W + 'Duschvorhänge > Duschvorhang']],
+
   // ── Lighting
   [/schreibtischlampe|schreibtischleuchte|arbeitsleuchte|klemmleuchte/, all(L, ['Schreibtischlampe', 'LED Schreibtischlampe', 'Klemmleuchte', 'LED Klemmleuchte'])],
   [/nachttischlampe|nachttischleuchte|tischlampe|tischleuchte|leselampe/, all(L, ['Tischleuchte', 'LED Tischleuchte', 'Nachttischlampe', 'LED Nachttischlampe'])],
@@ -25,8 +48,15 @@ const OTTO_RULES = [
   [/stehlampe|stehleuchte|deckenfluter/,            all(L, ['Stehlampe', 'LED Stehlampe', 'Bogenlampe@0.7', 'Deckenfluter@0.6'])],
   [/kronleuchter|lüster/,                           all(L, ['Kronleuchter'])],
   [/pendel|hängelampe|hängeleuchte|esstischlampe/,  all(L, ['Pendelleuchte', 'LED Pendelleuchte', 'Hängeleuchte', 'LED-Hängeleuchte'])],
-  [/deckenlampe|deckenleuchte|deckenlicht/,         all(L, ['Deckenleuchte', 'LED Deckenleuchte'])],
+  [/deckenstrahler|deckenspot|strahler|spots?\b/,   all(L, ['Deckenstrahler', 'LED Deckenstrahler', 'Deckenspot', 'LED Aufbaustrahler@0.7'])],
+  [/deckenlampe|deckenleuchte|deckenlicht/,         all(L, ['Deckenleuchte', 'LED Deckenleuchte', 'Deckenleuchten'])],
   [/wandlampe|wandleuchte/,                         all(L, ['Wandleuchte', 'LED Wandleuchte'])],
+  [/solarleuchte|solarlampe|gartenleuchte|gartenlampe|balkonleuchte|balkonlampe|außenleuchte|outdoor.?(lampe|leuchte)/, all(L, ['LED Solarleuchte', 'LED Gartenleuchte', 'Gartenleuchte', 'LED Außen-Tischleuchte'])],
+  [/lampenschirm/,                                  ['Leuchten > Lampenschirme > Lampenschirm']],
+  [/kugelleuchte|kugellampe|leuchtkugel/,           [L + 'LED Kugelleuchte']],
+  [/nachtlicht/,                                    all(L, ['Nachtlicht', 'LED Nachtlicht'])],
+  [/pflanzenlampe|pflanzenleuchte|grow/,            [L + 'Pflanzenlampe']],
+  [/lavalampe/,                                     [L + 'Lavalampe']],
   [/laterne|windlicht/,                             [...all(D + 'Kerzenhalter > ', ['Windlicht', 'Kerzenlaterne', 'Bodenwindlicht']), L + 'LED Laterne@0.6']],
 
   // ── Rugs
@@ -46,13 +76,31 @@ const OTTO_RULES = [
   [/bettwäsche|bettbezug/,                          all(W + 'Bettwäsche > ', ['Bettwäsche', 'Wendebettwäsche'])],
   [/stuhlkissen|sitzkissen|sitzauflage/,            all(W + 'Kissen > ', ['Sitzkissen', 'Stuhlkissen'])],
   [/kissenhülle|kissenbezug/,                       all(W + 'Kissenbezüge > ', ['Kissenhülle', 'Kissenhüllen', 'Kissenbezug', 'Kissenbezüge'])],
-  [/kissen/,                                        [W + 'Kissen > Dekokissen', ...all(W + 'Kissenbezüge > ', ['Kissenhülle@0.8', 'Kissenbezug@0.8'])]],
+  [/kissen/,                                        [W + 'Kissen > Dekokissen', W + 'Kissen > Fellkissen@0.7', ...all(W + 'Kissenbezüge > ', ['Kissenhülle@0.8', 'Kissenbezug@0.8'])]],
   [/decke|plaid|überwurf/,                          all(W + 'Wohndecken > ', ['Wohndecke', 'Plaid', 'Wolldecke', 'Überwurf'])],
   [/gardinenstange|vorhangstange/,                  all(W + 'Gardinenstangen > ', ['Gardinenstange', 'Vorhangschiene', 'Gardinenschiene'])],
+  [/plissee/,                                       [W + 'Plissees > Plissee']],
+  [/raffrollo/,                                     [W + 'Raffrollos > Raffrollo']],
+  [/rollo/,                                         all(W + 'Rollos > ', ['Rollo', 'Doppelrollo', 'Verdunklungsrollo', 'Seitenzugrollo']).concat([W + 'Plissees > Plissee@0.6'])],
+  [/scheibengardine|bistrogardine|caféhaus|cafehaus/, [W + 'Gardinen > Scheibengardine']],
+  [/schiebegardine|flächenvorhang/,                 [W + 'Gardinen > Schiebegardine']],
+  [/türvorhang/,                                    [W + 'Gardinen > Türvorhang']],
+  [/husse/,                                         [W + 'Hussen > Stuhlhusse', 'Haushalt > Sesselschoner > Sofaschoner@0.7']],
   [/verdunkelung/,                                  [W + 'Gardinen > Verdunkelungsvorhang']],
   [/vorhang|vorhänge|gardine|schlaufenschal|ösenschal/, all(W + 'Gardinen > ', ['Vorhang', 'Gardine', 'Verdunkelungsvorhang@0.6'])],
 
   // ── Seating
+  [/sitzsack|beanbag/,                              [M + 'Sitzsäcke > Sitzsack']],
+  [/daybett|tagesbett/,                             [M + 'Daybetten > Daybett']],
+  [/strandkorb/,                                    [M + 'Strandkörbe > Strandkorb']],
+  [/gartenliege|sonnenliege|liegestuhl/,            [M + 'Gartenliegen > Gartenliege']],
+  [/balkonset|bistroset|bistro-set|balkonmöbel/,    all(M + 'Sitzmöbel-Sets > ', ['Balkonset', 'Garten-Essgruppe@0.6'])],
+  [/loungeset|lounge-set|gartenlounge|loungemöbel|outdoor.?lounge/, all(M + 'Sitzmöbel-Sets > ', ['Gartenlounge-Set', 'Loungeset'])],
+  [/gartenstuhl|balkonstuhl|terrassenstuhl|bistrostuhl|klappstuhl|outdoor.?stuhl/, [M + 'Stühle > Gartenstuhl', M + 'Stühle > Klappstuhl']],
+  [/gartentisch|balkontisch|terrassentisch|bistrotisch|klapptisch|balkonhängetisch|outdoor.?tisch/, all(M + 'Tische > ', ['Gartentisch', 'Balkonhängetisch', 'Klapptisch'])],
+  [/gartenbank|balkonbank/,                         [M + 'Sitzbänke > Gartenbank']],
+  [/essgruppe|tischgruppe/,                         [M + 'Sitzmöbel-Sets > Essgruppe']],
+  [/gaming.?stuhl|gamingstuhl|gaming.?sessel/,      [M + 'Stühle > Gaming-Stuhl']],
   [/pouf|sitzpouf/,                                 [D + 'Poufs > Pouf', M + 'Hocker > Sitzwürfel', M + 'Hocker > Polsterhocker@0.7']],
   [/fußhocker|polsterhocker|sitzwürfel/,            all(M + 'Hocker > ', ['Polsterhocker', 'Fußhocker', 'Sitzwürfel', 'Sitzhocker@0.7'])],
   [/barhocker|tresenhocker/,                        [M + 'Hocker > Barhocker']],
@@ -80,22 +128,25 @@ const OTTO_RULES = [
   [/esszimmerstuhl|polsterstuhl|armlehnstuhl|holzstuhl|stuhl|stühle/, all(M + 'Stühle > ', ['Esszimmerstuhl', 'Polsterstuhl', 'Stuhl', 'Armlehnstuhl', 'Holzstuhl', '4-Fußstuhl', 'Freischwinger@0.8', 'Küchenstuhl@0.6'])],
 
   // ── Beds
+  [/boxspring/,                                      [M + 'Komplettbetten > Boxspringbett', M + 'Komplettbetten > Boxbett']],
+  [/hochbett|etagenbett/,                           [M + 'Hochbetten > Hochbett', M + 'Etagenbetten > Etagenbett']],
+  [/kinderbett/,                                    [M + 'Betten > Kinderbett']],
   [/polsterbett/,                                   [M + 'Betten > Polsterbett']],
   [/massivholzbett|holzbett/,                       all(M + 'Betten > ', ['Massivholzbett', 'Holzbett', 'Bettgestell@0.6'])],
   [/metallbett/,                                    [M + 'Betten > Metallbett']],
   [/himmelbett/,                                    [M + 'Betten > Himmelbett']],
-  [/bettgestell|bettrahmen|bett\b|doppelbett/,      all(M + 'Betten > ', ['Bett', 'Bettgestell', 'Polsterbett', 'Massivholzbett', 'Holzbett', 'Metallbett', 'Stauraumbett@0.6'])],
+  [/bettgestell|bettrahmen|bett\b|doppelbett/,      all(M + 'Betten > ', ['Bett', 'Bettgestell', 'Polsterbett', 'Massivholzbett', 'Holzbett', 'Metallbett', 'Stauraumbett@0.6']).concat([M + 'Komplettbetten > Boxspringbett@0.5'])],
 
   // ── Tables
   [/nachttisch|nachtkonsole|nachtschrank/,          [M + 'Tische > Nachttisch', M + 'Sideboards > Nachtkommode', M + 'Sideboards > Nachtkonsole', M + 'Schränke > Nachtschrank']],
   [/schminktisch|frisiertisch/,                     [M + 'Tische > Schminktisch']],
-  [/schreibtisch|computertisch/,                    all(M + 'Tische > ', ['Schreibtisch', 'Computertisch', 'Eckschreibtisch@0.6'])],
+  [/schreibtisch|computertisch/,                    all(M + 'Tische > ', ['Schreibtisch', 'Computertisch', 'Laptoptisch@0.6', 'Eckschreibtisch@0.6'])],
   [/couchtisch|sofatisch|wohnzimmertisch/,          all(M + 'Tische > ', ['Couchtisch', 'Wohnzimmertisch'])],
   [/beistelltisch|satztisch|tabletttisch/,          all(M + 'Tische > ', ['Beistelltisch', 'Satztisch', 'Tabletttisch'])],
   [/konsole|konsolentisch|wandtisch/,               [M + 'Tische > Konsolentisch', M + 'Sideboards > Konsole']],
   [/bartisch|stehtisch/,                            all(M + 'Tische > ', ['Bartisch', 'Stehtisch'])],
   [/esstisch|küchentisch|esszimmertisch/,           all(M + 'Tische > ', ['Esstisch', 'Säulen-Esstisch', 'Baumkantentisch', 'Küchentisch@0.7'])],
-  [/\btische?\b|(bistro|klapp|holz|glas|marmor|runder?|ovaler?)tisch/, all(M + 'Tische > ', ['Esstisch', 'Couchtisch@0.7', 'Beistelltisch@0.7'])],
+  [/\btische?\b|(holz|glas|marmor|runder?|ovaler?)tisch/, all(M + 'Tische > ', ['Esstisch', 'Couchtisch@0.7', 'Beistelltisch@0.7'])],
 
   // ── Storage
   [/kleiderschrank/,                                all(M + 'Schränke > ', ['Kleiderschrank', 'Drehtürenschrank', 'Schwebetürenschrank'])],
@@ -105,14 +156,27 @@ const OTTO_RULES = [
   [/lowboard|tv-board|tv-bank|tv-schrank|fernsehschrank/, all(M + 'Sideboards > ', ['Lowboard', 'TV-Board', 'TV-Bank']).concat([M + 'Schränke > TV-Schrank'])],
   [/schuhkipper|schuhschrank/,                      [M + 'Sideboards > Schuhkipper', M + 'Schränke > Schuhschrank']],
   [/kommode/,                                       all(M + 'Sideboards > ', ['Kommode', 'Schubkastenkommode', 'Kombikommode', 'Hochkommode'])],
+  [/schuhregal/,                                    [M + 'Regale > Schuhregal', M + 'Sitzbänke > Schuhbank@0.6']],
+  [/schuhbank/,                                     [M + 'Sitzbänke > Schuhbank']],
+  [/weinregal/,                                     [M + 'Regale > Weinregal']],
+  [/eckregal/,                                      [M + 'Regale > Eckregal']],
+  [/kinderregal/,                                   [M + 'Regale > Kinderregal']],
+  [/wohnwand|schrankwand|wohnzimmerwand/,           [M + 'Kastenmöbel-Sets > Wohnwand']],
+  [/balkonsichtschutz|balkon.*sichtschutz|sichtschutz.*balkon|balkonbespannung/, ['Garten > Markisen > Balkonsichtschutz']],
+  [/paravent|trennwand|raumtrenner/,          ['Haushalt > Stellwände > Paravent']],
+  [/rollwagen|servierwagen|küchenwagen|barwagen/,   [M + 'Rollwagen > Rollwagen', M + 'Rollwagen > Küchenwagen']],
   [/wandboard/,                                     [M + 'Regale > Wandboard']],
   [/wandregal|hängeregal/,                          all(M + 'Regale > ', ['Wandregal', 'Hängeregal', 'Wandboard@0.7'])],
   [/leiterregal/,                                   [M + 'Regale > Leiterregal']],
-  [/raumteiler/,                                    all(M + 'Regale > ', ['Raumteiler', 'Raumteilerregal'])],
+  [/raumteiler/,                                    all(M + 'Regale > ', ['Raumteiler', 'Raumteilerregal']).concat(['Haushalt > Stellwände > Paravent@0.6'])],
   [/bücherregal|standregal|regal/,                  all(M + 'Regale > ', ['Bücherregal', 'Standregal', 'Regal', 'Wandregal@0.6'])],
   [/garderobenständer|kleiderständer|kleiderstange/, all(M + 'Garderobenständer > ', ['Garderobenständer', 'Kleiderständer'])],
+  [/garderobenpaneel|wandgarderobe|garderobenleiste|hakenleiste|garderobe(?!nständer|nschrank)/, [M + 'Garderobenpaneele > Wandgarderobe', M + 'Garderobenpaneele > Garderobenpaneel', M + 'Garderobenpaneele > Garderobe', M + 'Garderobenhalter > Garderobenleiste', M + 'Kastenmöbel-Sets > Garderoben-Set@0.7']],
+  [/garderobenschrank/,                             [M + 'Schränke > Garderobenschrank']],
   [/wäschekorb|wäschesammler/,                      [W + 'Wäschesammler']],
+  [/kaminholz/,                                     [D + 'Aufbewahrungsboxen > Kaminholzkorb']],
   [/korb|körbe/,                                    all(D + 'Aufbewahrungsboxen > ', ['Aufbewahrungskorb', 'Flechtkorb', 'Dekokorb', 'Allzweckkorb'])],
+  [/aufbewahrungsbox|box(en)?\b|organizer/,         all(D + 'Aufbewahrungsboxen > ', ['Aufbewahrungsbox', 'Allzweckkiste@0.7', 'Organizer@0.6'])],
   [/truhe|kiste/,                                   [D + 'Aufbewahrungsboxen > Holzkiste', M + 'Sitzbänke > Sitztruhe@0.6']],
 
   // ── Decor
@@ -120,14 +184,29 @@ const OTTO_RULES = [
   [/spiegel/,                                       ['Haushalt > Spiegel > Wandspiegel', 'Haushalt > Spiegel > Spiegel', 'Haushalt > Spiegel > Ganzkörperspiegel@0.6']],
   [/wanduhr|\buhr\b/,                               all(D + 'Wanduhren > ', ['Wanduhr', 'Uhr'])],
   [/bilderrahmen/,                                  all(D + 'Bilderrahmen > ', ['Bilderrahmen', 'Bilderrahmen-Set'])],
+  [/wandtattoo|wandsticker|wandaufkleber/,         [D + 'Wandtattoos > Wandtattoo', D + 'Wandtattoos > Wandsticker']],
+  [/poster|kunstdruck|print\b/,                    [B + 'Poster', B + 'Kunstdruck', B + 'Bild mit Rahmen@0.7']],
+  [/leinwand/,                                      [B + 'Leinwandbild', B + 'Mehrteilige Bilder@0.6']],
+  [/gemälde|ölbild|acrylbild/,                      [B + 'Gemälde', B + 'Leinwandbild@0.7']],
+  [/wandbild|\bbild\b|bilder\b|wandkunst|kunstwerk|bilderset/, [B + 'Wandbild', B + 'Leinwandbild', B + 'Bild mit Rahmen', B + 'Poster@0.7', B + 'Mehrteilige Bilder@0.6', B + 'Glasbild@0.5']],
+  [/\btafel\b|kreidetafel|magnettafel|pinnwand|memoboard/,                      [D + 'Tafeln > Magnettafel']],
+  [/tischfeuer|tischkamin|ethanol/,                 [D + 'Dekokamine > Tischfeuer']],
+  [/geschirr|tafelservice|kombiservice/,            ['Haushalt > Geschirr-Sets > Geschirr-Set', 'Haushalt > Geschirr-Sets > Kombiservice', 'Haushalt > Geschirr-Sets > Tafelservice']],
+  [/obstschale|obstkorb/,                           ['Haushalt > Schüsseln > Obstschale']],
   [/vase/,                                          all(D + 'Vasen > ', ['Dekovase', 'Tischvase', 'Bodenvase'])],
   [/tablett/,                                       [D + 'Tabletts > Tablett', D + 'Dekoschalen > Dekotablett']],
   [/schale|schüssel/,                               all(D + 'Dekoschalen > ', ['Dekoschale', 'Dekoteller'])],
   [/kerzenständer|kerzenhalter|kerzenleuchter/,     all(D + 'Kerzenhalter > ', ['Kerzenständer', 'Kerzenhalter', 'Kerzenleuchter', 'Wandkerzenhalter@0.6'])],
   [/teelicht/,                                      [D + 'Kerzenhalter > Teelichthalter']],
+  [/duftkerze/,                                     [D + 'Kerzen > Duftkerze']],
+  [/kerze/,                                         all(D + 'Kerzen > ', ['Stumpenkerze', 'Spitzkerze', 'Duftkerze@0.7', 'LED-Kerze@0.5'])],
   [/skulptur|figur/,                                all(D + 'Dekofiguren > ', ['Skulptur', 'Dekofigur', 'Dekoobjekt@0.7'])],
   [/wanddeko|wandobjekt/,                           [D + 'Wanddekoobjekte > Wanddekoobjekt']],
 ];
+
+// Things OTTO's Wohnen feed doesn't have as the piece itself (floors,
+// wallpaper, cables, real plants): no match, the search link is used.
+const OTTO_EXCLUDE = /vinyl|laminat|parkett|fliese|tapete|wandfarbe|teppichboden|bodenbelag|sockelleiste|glühbirne|leuchtmittel|smart plug|steckdose|kabel|monstera|ficus|(oliven|zitronen|geld|gummi|feigen|lorbeer|bananen|zier|zimmer)baum|palme|kaktus|eukalyptus|bonsai/;
 
 // Every category any rule can return; rows outside them aren't kept
 const KEEP = new Set(OTTO_RULES.flatMap(r => r[1].map(p => p.split('@')[0].replace(/=$/, ''))));
@@ -151,7 +230,7 @@ function colourOf(c) {
 // category isn't one we search in, it's out of stock, or the same product
 // in the same colour was already kept (OTTO lists every size as a row).
 function shapeRow(r, seen) {
-  const path = String(r.merchant_product_category_path || '').replace(/^Einrichten & Wohnen > /, '');
+  const path = String(r.merchant_product_category_path || '').replace(/^(Einrichten & Wohnen|Garten & Heimwerken) > /, '');
   const parts = path.split(' > ');
   if (!KEEP.has(parts.slice(0, 3).join(' > ')) && !KEEP.has(parts.slice(0, 2).join(' > '))) return null;
   if (r.stock_quantity !== undefined && r.stock_quantity !== '' && Number(r.stock_quantity) <= 0) return null;
@@ -183,13 +262,35 @@ const GOOD_BRANDS = /^(otto products|otto home|home affaire|andas|leger home|gui
 function buildIndex(shaped) {
   const index = hBuild(shaped);
   index.rules = OTTO_RULES;
+  index.exclude = OTTO_EXCLUDE;
   index.extra = new Map(shaped.map(r => [r.aw_deep_link, { brand: r.brand, rating: r.rating }]));
   return index;
 }
 
 // OTTO titles are long ("Bruno Banani Gardine Tilo, 1 Stück, Kräuselband, …"):
 // the display title is the part before the first comma.
+// Real plants: OTTO's Wohnen feed sells pots and artificial plants, not
+// the plant itself. "Monstera im Keramiktopf" must not become a pot.
+const PLANT_RE = /monstera|ficus|feige|olivenbaum|palme|kaktus|bonsai|farn|eukalyptus|strelitzie|calathea|pothos|efeu|zimmerpflanze|grünpflanze|pflanze\b|pflanzen\b/;
+
+// Style and filler words: a title rarely says "skandinavisch" or "natur"
+const LOOSE_RE = /^(natur|natürlich|form|groß|große|großer|klein|kleine|mid|century|modern|moderne|skandinavisch|nordisch|boho|vintage|retro|industrial|minimalistisch|schlicht|elegant|gemütlich|hell|dunkel|warm|style|stil|look|optik|design|wohnzimmer|schlafzimmer|flur|esszimmer|küche|innen)$/;
+
 function search(index, q, limit = 4) {
+  const text = String(q.text || '').toLowerCase();
+  const first = text.split(/[\s,]+/)[0] || '';
+  if (PLANT_RE.test(first) && !/kunst|künstlich|trocken/.test(text)) return { matched: false, sure: false, results: [] };
+  // OTTO titles are long and say what the piece is: the describing words of
+  // the query ("botanisch", "Wiener Geflecht", "Sonne") must be in there
+  // too, at least half of them, for the match to count as THE piece.
+  const Q = parseQuery(q, OTTO_RULES, OTTO_EXCLUDE);
+  const stem = w => (w.length > 5 ? w.slice(0, -1) : w);
+  const rest = Q.rest.filter(w => !/\d/.test(w) && !LOOSE_RE.test(w) && !OTTO_RULES.some(([re]) => re.test(w)));
+  const restOk = title => {
+    const t = String(title).toLowerCase();
+    const hits = rest.filter(w => t.includes(stem(w))).length;
+    return hits * 2 >= rest.length;
+  };
   const r = hSearch(index, q, Math.max(limit, 12));
   const bonus = p => {
     const x = index.extra.get(p.link) || {};
@@ -199,6 +300,7 @@ function search(index, q, limit = 4) {
     if (p.price < 20) b -= 10;   // the cheapest marketplace items are rarely what a design shows
     return b;
   };
+  for (const p of r.results || []) p.sure = !!p.sure && restOk(p.title);
   const ranked = (r.results || []).map(p => ({ p, s: (p.score || 0) + bonus(p) })).sort((a, b) => (b.p.sure - a.p.sure) || (b.s - a.s)).slice(0, limit).map(x => x.p);
   for (const p of ranked) p.title = String(p.title).split(/,\s| [–-] /)[0].slice(0, 90);
   return { ...r, sure: !!(ranked[0] && ranked[0].sure), results: ranked };

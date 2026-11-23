@@ -360,13 +360,13 @@ function buildIndex(rows) {
 }
 
 // ── Query parsing ────────────────────────────────────────────────────
-function parseQuery(q, RULES = TYPE_RULES) {
+function parseQuery(q, RULES = TYPE_RULES, EXCLUDE = EXCLUDE_RE) {
   const text = norm(q.text);
   const words = text.split(/[\s,/()+&-]+/).filter(Boolean);
 
   // Product type: first word decides if it names a type, otherwise the whole text
   const findRule = s => RULES.find(([re]) => re.test(s));
-  const firstRule = words[0] && !/^(deko|set|design|moderne?[rs]?|große?[rs]?|kleine?[rs]?|runde?[rs]?)$/.test(words[0]) && !EXCLUDE_RE.test(words[0]) ? findRule(words[0]) : null;
+  const firstRule = words[0] && !/^(deko|set|design|moderne?[rs]?|große?[rs]?|kleine?[rs]?|runde?[rs]?)$/.test(words[0]) && !EXCLUDE.test(words[0]) ? findRule(words[0]) : null;
   let rule = firstRule || findRule(text);
   // A more specific rule of the same family wins ("Sofa 3-Sitzer" -> 3-Sitzer,
   // "Teppich Jute" -> Naturteppiche), but never a different product type
@@ -438,7 +438,7 @@ function parseQuery(q, RULES = TYPE_RULES) {
   return { text, size, len, multiColour, darkGrey, kids, rule, need: rule && rule[2], paths, colour, wood, massiv, materials, features, rest, keys, priceMin, priceMax,
     // The first word naming a type wins ("Rattankorb mit Pflanze" is a basket);
     // otherwise anything that mentions plants, flooring etc. is skipped
-    excluded: firstRule ? false : EXCLUDE_RE.test(text) };
+    excluded: firstRule ? false : EXCLUDE.test(text) };
 }
 
 // ── Search ───────────────────────────────────────────────────────────
@@ -550,9 +550,10 @@ function scoreItem(it, Q, pathW) {
 function search(index, query, limit = 4) {
   // index.rules: another shop's category rules (OTTO), same scoring
   const RULES = index.rules || TYPE_RULES;
-  let Q = parseQuery(query, RULES);
+  const EXCL = index.exclude || EXCLUDE_RE;
+  let Q = parseQuery(query, RULES, EXCL);
   // No product type in the search phrase? Try the card's display title.
-  if (!Q.paths.length && !Q.excluded && query.alt) Q = parseQuery({ ...query, text: `${query.alt} ${query.text}` }, RULES);
+  if (!Q.paths.length && !Q.excluded && query.alt) Q = parseQuery({ ...query, text: `${query.alt} ${query.text}` }, RULES, EXCL);
   if (Q.excluded || !Q.paths.length) return { matched: false, reason: Q.excluded ? 'excluded' : 'no-type', results: [] };
   if (Q.paths.some(p => p.path.startsWith('Betten >')) && !/polster|boxspring/.test(Q.text)
       && Q.materials.some(re => re.test('eiche buche kiefer nussbaum holz massiv akazie'))) {

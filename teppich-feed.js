@@ -85,4 +85,20 @@ function searchMany(items, limit) {
   });
 }
 
-module.exports = { load, status, searchMany };
+// Current price of hand-picked products (faindz Partnershop), by their
+// Awin deep link. null = no longer in the feed (sold out or removed).
+let byLink = null, byLinkFor = null;
+function lookup(links) {
+  if (!state.index) return null;
+  if (byLinkFor !== state.index) {
+    byLink = new Map();
+    for (const v of state.index.models.flatMap(m => m.variants)) if (v.link && !byLink.has(v.link)) byLink.set(v.link, v);
+    byLinkFor = state.index;
+  }
+  return links.map(l => {
+    const v = byLink.get(l);
+    return v ? { price: v.price, oldPrice: v.oldPrice > v.price ? v.oldPrice : 0 } : null;
+  });
+}
+
+module.exports = { load, status, searchMany, lookup };

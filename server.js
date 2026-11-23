@@ -224,6 +224,35 @@ app.post('/products', (req, res) => {
   res.json({ ready: true, results });
 });
 
+// ─── PARTNERSHOP PRICES ───────────────────────────────────────────
+// The /shop pages list hand-picked products with the price they had when
+// picked. This returns today's price, or null when a product is gone, so
+// the page can hide it. Body: { items: [{ shop, link }, ...] } (max 80)
+app.post('/shop/prices', (req, res) => {
+  const ip = getClientIp(req);
+  const now = Date.now();
+  let rec = productMinute.get(ip);
+  if (!rec || rec.resetAt <= now) { rec = { count: 0, resetAt: now + 60_000 }; productMinute.set(ip, rec); }
+  if (++rec.count > 60) return res.status(429).json({ error: 'Too many requests' });
+
+  const raw = Array.isArray(req.body?.items) ? req.body.items.slice(0, 80) : [];
+  const results = new Array(raw.length).fill(null);
+  const byShop = {};
+  raw.forEach((it, i) => {
+    const shop = String(it?.shop || '');
+    if (!FEEDS[shop]) return;
+    (byShop[shop] = byShop[shop] || []).push([i, String(it?.link || '')]);
+  });
+  let ready = true;
+  for (const [shop, list] of Object.entries(byShop)) {
+    const found = FEEDS[shop].lookup(list.map(([, l]) => l));
+    if (!found) { ready = false; continue; }
+    list.forEach(([i], k) => { results[i] = found[k]; });
+  }
+  res.set('Cache-Control', 'no-store');
+  res.json({ ready, results });
+});
+
 // Anthropic Messages API proxy
 app.post('/anthropic', async (req, res) => {
   if (!checkRateLimit(req, res)) return;

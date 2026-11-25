@@ -354,9 +354,15 @@ app.post('/veo', async (req, res) => {
   const { action } = req.body || {};
   try {
     if (action === 'models') {
-      const r = await fetch(`${base}/models?pageSize=200&${key}`);
-      const j = await r.json();
-      return res.json((j.models || []).filter(m => /veo/i.test(m.name)).map(m => ({ name: m.name, methods: m.supportedGenerationMethods })));
+      let all = [], tok = '';
+      for (let i = 0; i < 10; i++) {
+        const r = await fetch(`${base}/models?pageSize=100${tok ? '&pageToken=' + tok : ''}&${key}`);
+        const j = await r.json();
+        all = all.concat(j.models || []);
+        if (!j.nextPageToken) break; tok = j.nextPageToken;
+      }
+      const vid = all.filter(m => /veo|video/i.test(m.name + ' ' + (m.supportedGenerationMethods || []).join(' ')));
+      return res.json({ total: all.length, video: vid.map(m => ({ name: m.name, methods: m.supportedGenerationMethods })) });
     }
     if (action === 'start') {
       const model = String(req.body.model || '');

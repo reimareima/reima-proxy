@@ -362,7 +362,7 @@ app.post('/veo', async (req, res) => {
         if (!j.nextPageToken) break; tok = j.nextPageToken;
       }
       const vid = all.filter(m => /veo|video/i.test(m.name + ' ' + (m.supportedGenerationMethods || []).join(' ')));
-      return res.json({ total: all.length, video: vid.map(m => ({ name: m.name, methods: m.supportedGenerationMethods })) });
+      return res.json({ total: all.length, video: vid.map(m => ({ name: m.name, methods: m.supportedGenerationMethods })), names: all.map(m => m.name.replace('models/', '')) });
     }
     if (action === 'start') {
       const model = String(req.body.model || '');

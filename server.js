@@ -342,6 +342,56 @@ app.post('/gemini', async (req, res) => {
   }
 });
 
+// ─── VEO (video generation, used for marketing clips) ─────────────
+// Long-running: start -> poll -> download. Hard daily cap to protect the bill.
+const VEO_DAILY_CAP = parseInt(process.env.VEO_DAILY_CAP || '12', 10);
+let veoDay = new Date().toISOString().slice(0, 10), veoCount = 0;
+app.post('/veo', async (req, res) => {
+  if (!checkRateLimit(req, res)) return;
+  if (!GEMINI_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY missing' });
+  const base = 'https://generativelanguage.googleapis.com/v1beta';
+  const key = `key=${encodeURIComponent(GEMINI_KEY)}`;
+  const { action } = req.body || {};
+  try {
+    if (action === 'models') {
+      const r = await fetch(`${base}/models?pageSize=200&${key}`);
+      const j = await r.json();
+      return res.json((j.models || []).filter(m => /veo/i.test(m.name)).map(m => ({ name: m.name, methods: m.supportedGenerationMethods })));
+    }
+    if (action === 'start') {
+      const model = String(req.body.model || '');
+      if (!/^veo-[\w.-]+$/.test(model)) return res.status(400).json({ error: 'model not allowed' });
+      const today = new Date().toISOString().slice(0, 10);
+      if (today !== veoDay) { veoDay = today; veoCount = 0; }
+      if (veoCount >= VEO_DAILY_CAP) return res.status(429).json({ error: 'daily video cap reached' });
+      veoCount++;
+      const r = await fetch(`${base}/models/${model}:predictLongRunning?${key}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req.body.body || {})
+      });
+      res.status(r.status); return res.send(await r.text());
+    }
+    if (action === 'poll') {
+      const name = String(req.body.name || '');
+      if (!/^models\/veo-[\w.-]+\/operations\/[\w-]+$/.test(name)) return res.status(400).json({ error: 'bad operation name' });
+      const r = await fetch(`${base}/${name}?${key}`);
+      res.status(r.status); return res.send(await r.text());
+    }
+    if (action === 'download') {
+      const uri = String(req.body.uri || '');
+      if (!uri.startsWith('https://generativelanguage.googleapis.com/')) return res.status(400).json({ error: 'bad uri' });
+      const r = await fetch(uri + (uri.includes('?') ? '&' : '?') + key, { redirect: 'follow' });
+      if (!r.ok) return res.status(r.status).send(await r.text());
+      const buf = Buffer.from(await r.arrayBuffer());
+      res.set('Content-Type', r.headers.get('content-type') || 'video/mp4');
+      return res.send(buf);
+    }
+    res.status(400).json({ error: 'unknown action' });
+  } catch (err) {
+    console.error('Veo proxy error:', err);
+    res.status(502).json({ error: 'Upstream Veo request failed', detail: err.message });
+  }
+});
+
 // ─── START ─────────────────────────────────────────────────────────
 hoeffner.load();
 teppich.load();

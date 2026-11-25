@@ -96,8 +96,12 @@ function nextMidnightUTC() {
 
 function getClientIp(req) {
   // x-forwarded-for can be a comma-separated list — take the first (client)
+  // The first x-forwarded-for entry is set by the client and can be faked,
+  // so prefer Railway's x-real-ip, then the last (proxy-added) entry.
+  const real = req.headers['x-real-ip'];
+  if (real) return String(real).trim();
   const xff = req.headers['x-forwarded-for'];
-  if (xff) return xff.split(',')[0].trim();
+  if (xff) return xff.split(',').pop().trim();
   return req.ip || req.connection?.remoteAddress || 'unknown';
 }
 
@@ -173,6 +177,15 @@ setInterval(() => {
   for (const [ip, rec] of ipMinute) if (rec.resetAt <= now) ipMinute.delete(ip);
   for (const [ip, rec] of ipDay)    if (rec.resetAt <= now) ipDay.delete(ip);
 }, 5 * 60_000);
+
+// Paid endpoints only answer requests coming from faindz.de. CORS alone
+// does not stop curl/scripts (no Origin header), this does.
+function requireOrigin(req, res) {
+  const origin = normalizeOrigin(req.headers.origin || '');
+  if (origin && ALLOWED_ORIGINS.includes(origin)) return true;
+  res.status(403).json({ error: 'Forbidden' });
+  return false;
+}
 
 // ─── ROUTES ────────────────────────────────────────────────────────
 
@@ -259,6 +272,7 @@ app.post('/shop/prices', (req, res) => {
 // ─── SIMILAR PRODUCTS (picture check, see similar.js) ────────────
 // Paid (one small Gemini call per product), so it counts like /gemini.
 app.post('/similar', async (req, res) => {
+  if (!requireOrigin(req, res)) return;
   if (!checkRateLimit(req, res)) return;
   if (!GEMINI_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY missing' });
   try {
@@ -273,8 +287,14 @@ app.post('/similar', async (req, res) => {
 });
 
 // Anthropic Messages API proxy
+const ANTHROPIC_MODELS = new Set(['claude-haiku-5-5', 'claude-sonnet-5-5']);
 app.post('/anthropic', async (req, res) => {
+  if (!requireOrigin(req, res)) return;
   if (!checkRateLimit(req, res)) return;
+  if (!ANTHROPIC_MODELS.has(req.body?.model)) {
+    return res.status(400).json({ error: 'Model not allowed' });
+  }
+  req.body.max_tokens = Math.min(parseInt(req.body.max_tokens, 10) || 1024, 4096);
   if (!ANTHROPIC_KEY) {
     return res.status(500).json({ error: 'Server misconfigured: ANTHROPIC_API_KEY missing' });
   }
@@ -296,13 +316,14 @@ app.post('/anthropic', async (req, res) => {
     res.send(text);
   } catch (err) {
     console.error('Anthropic proxy error:', err);
-    res.status(502).json({ error: 'Upstream Anthropic request failed', detail: err.message });
+    res.status(502).json({ error: 'Upstream Anthropic request failed' });
   }
 });
 
 // Gemini image generation/edit proxy
 // Frontend sends: { model: 'gemini-2.5-flash-image', body: {...} }
 app.post('/gemini', async (req, res) => {
+  if (!requireOrigin(req, res)) return;
   if (!checkRateLimit(req, res)) return;
   if (!GEMINI_KEY) {
     return res.status(500).json({ error: 'Server misconfigured: GEMINI_API_KEY missing' });
@@ -338,63 +359,7 @@ app.post('/gemini', async (req, res) => {
     res.send(text);
   } catch (err) {
     console.error('Gemini proxy error:', err);
-    res.status(502).json({ error: 'Upstream Gemini request failed', detail: err.message });
-  }
-});
-
-// ─── VEO (video generation, used for marketing clips) ─────────────
-// Long-running: start -> poll -> download. Hard daily cap to protect the bill.
-const VEO_DAILY_CAP = parseInt(process.env.VEO_DAILY_CAP || '12', 10);
-let veoDay = new Date().toISOString().slice(0, 10), veoCount = 0;
-app.post('/veo', async (req, res) => {
-  if (!checkRateLimit(req, res)) return;
-  if (!GEMINI_KEY) return res.status(500).json({ error: 'GEMINI_API_KEY missing' });
-  const base = 'https://generativelanguage.googleapis.com/v1beta';
-  const key = `key=${encodeURIComponent(GEMINI_KEY)}`;
-  const { action } = req.body || {};
-  try {
-    if (action === 'models') {
-      let all = [], tok = '';
-      for (let i = 0; i < 10; i++) {
-        const r = await fetch(`${base}/models?pageSize=100${tok ? '&pageToken=' + tok : ''}&${key}`);
-        const j = await r.json();
-        all = all.concat(j.models || []);
-        if (!j.nextPageToken) break; tok = j.nextPageToken;
-      }
-      const vid = all.filter(m => /veo|video/i.test(m.name + ' ' + (m.supportedGenerationMethods || []).join(' ')));
-      return res.json({ total: all.length, video: vid.map(m => ({ name: m.name, methods: m.supportedGenerationMethods })), names: all.map(m => m.name.replace('models/', '')) });
-    }
-    if (action === 'start') {
-      const model = String(req.body.model || '');
-      if (!/^veo-[\w.-]+$/.test(model)) return res.status(400).json({ error: 'model not allowed' });
-      const today = new Date().toISOString().slice(0, 10);
-      if (today !== veoDay) { veoDay = today; veoCount = 0; }
-      if (veoCount >= VEO_DAILY_CAP) return res.status(429).json({ error: 'daily video cap reached' });
-      veoCount++;
-      const r = await fetch(`${base}/models/${model}:predictLongRunning?${key}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req.body.body || {})
-      });
-      res.status(r.status); return res.send(await r.text());
-    }
-    if (action === 'poll') {
-      const name = String(req.body.name || '');
-      if (!/^models\/veo-[\w.-]+\/operations\/[\w-]+$/.test(name)) return res.status(400).json({ error: 'bad operation name' });
-      const r = await fetch(`${base}/${name}?${key}`);
-      res.status(r.status); return res.send(await r.text());
-    }
-    if (action === 'download') {
-      const uri = String(req.body.uri || '');
-      if (!uri.startsWith('https://generativelanguage.googleapis.com/')) return res.status(400).json({ error: 'bad uri' });
-      const r = await fetch(uri + (uri.includes('?') ? '&' : '?') + key, { redirect: 'follow' });
-      if (!r.ok) return res.status(r.status).send(await r.text());
-      const buf = Buffer.from(await r.arrayBuffer());
-      res.set('Content-Type', r.headers.get('content-type') || 'video/mp4');
-      return res.send(buf);
-    }
-    res.status(400).json({ error: 'unknown action' });
-  } catch (err) {
-    console.error('Veo proxy error:', err);
-    res.status(502).json({ error: 'Upstream Veo request failed', detail: err.message });
+    res.status(502).json({ error: 'Upstream Gemini request failed' });
   }
 });
 

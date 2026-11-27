@@ -27,7 +27,8 @@ async function model(apiKey) {
   console.log('[similar] model:', MODEL, 'of', names.join(', '));
   return MODEL;
 }
-const MIN_SCORE = 8;            // 8 = a shopper would accept it as that piece
+const MIN_SCORE = 8;
+const IDEA_SCORE = 6;          // 6 = same kind of product, different look            // 8 = a shopper would accept it as that piece
 const PER_SHOP = { otto: 10 };  // candidates per shop, others DEFAULT_PER_SHOP
 const DEFAULT_PER_SHOP = 3;
 const MAX_CANDIDATES = 14;
@@ -118,13 +119,13 @@ async function checkItem(look, item, FEEDS, apiKey) {
   let out;
   try { out = JSON.parse(text); } catch { throw new Error('bad JSON from Gemini'); }
   const score = new Map((out.scores || []).map(s => [String(s.id), Number(s.score) || 0]));
-  const matches = usable
-    .map((x, i) => ({ ...x.p, score: score.get(`C${i + 1}`) || 0 }))
-    .filter(m => out.found !== false && m.score >= MIN_SCORE)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 3)
-    .map(m => ({ shop: m.shop, title: m.title, price: m.price, oldPrice: m.oldPrice || 0, image: m.image, image2: m.image2, link: m.link, score: m.score }));
-  return { checked: true, found: out.found !== false, matches, scores: usable.map((x, i) => [x.p.shop, x.p.title.slice(0, 40), score.get(`C${i + 1}`) || 0]) };
+  const shape = m => ({ shop: m.shop, title: m.title, price: m.price, oldPrice: m.oldPrice || 0, image: m.image, image2: m.image2, link: m.link, score: m.score });
+  const scored = usable.map((x, i) => ({ ...x.p, score: score.get(`C${i + 1}`) || 0 })).sort((a, b) => b.score - a.score);
+  const matches = scored.filter(m => out.found !== false && m.score >= MIN_SCORE).slice(0, 3).map(shape);
+  // No close match: the same kind of product in a different look, shown
+  // as "ideas" so every card has something to look at
+  const ideas = matches.length ? [] : scored.filter(m => m.score >= IDEA_SCORE).slice(0, 3).map(shape);
+  return { checked: true, found: out.found !== false, matches, ideas, scores: usable.map((x, i) => [x.p.shop, x.p.title.slice(0, 40), score.get(`C${i + 1}`) || 0]) };
 }
 
 async function similar(body, FEEDS, apiKey) {
